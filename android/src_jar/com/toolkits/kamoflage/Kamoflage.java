@@ -44,7 +44,7 @@ import android.widget.ProgressBar;
 import java.lang.Runnable;
 
 public class Kamoflage
-{	
+{
 	static final boolean DEBUG_LAYOUT = false;
 
 	static android.app.Activity kamoflage_context;
@@ -55,7 +55,7 @@ public class Kamoflage
 
 	public static float get_w_ppi() { return w_ppi; }
 	public static float get_h_ppi() { return h_ppi; }
-	
+
 	public Kamoflage(android.app.Activity cntxt, int listrow_rid, int listlayout_rid) {
 		kamoflage_context = cntxt;
 		listrow_resource_id = listrow_rid;
@@ -66,7 +66,7 @@ public class Kamoflage
 		cntxt.getWindowManager().getDefaultDisplay().getMetrics(metrics);
 
 		android.view.ViewConfiguration config = android.view.ViewConfiguration.get(cntxt);
-		
+
 		float w = (float)(metrics.widthPixels) / metrics.xdpi;
 		float h = (float)(metrics.heightPixels) / metrics.ydpi;
 		float d = (float)Math.sqrt((double)(w * w + h * h));
@@ -76,16 +76,16 @@ public class Kamoflage
 
 		w_ppi = w_p / w;
 		h_ppi = h_p / h;
-		
+
 		setDisplayConfiguration(w, h, metrics.xdpi, metrics.ydpi, config.getScaledEdgeSlop());
 
 	}
-	
+
 	private static HashMap<String, Widget> widgets;
 	public static class Widget {
 
 		public boolean topLevelWidget = true; // this MUST be set to false when the Widget is put in a another containing Widget
-		
+
 		protected long nativeID;
 		protected View internal;
 
@@ -94,7 +94,7 @@ public class Kamoflage
 		protected int border_width;
 
 		protected ContainerBase parent = null;
-		
+
 		protected String title;
 		protected String id;
 		protected String exturi;
@@ -114,7 +114,7 @@ public class Kamoflage
 				kamoflage_context.startActivity(browserIntent);
 			}
 		}
-		
+
 		private static int id_counter = 0;
 		static protected String generateID() {
 			String result = "__ANDROID_GENERATED_THIS_ID__" + id_counter;
@@ -122,14 +122,14 @@ public class Kamoflage
 
 			return result;
 		}
-		
+
 		protected void deregister_self() {
-			if(widgets.get(id) == null)			
+			if(widgets.get(id) == null)
 				throw new RuntimeException(
 					"The ID was NOT found - inconcisteny. [" + id + "]");
 			widgets.remove(id);
 		}
-		
+
 		protected void register_id() {
 			if(widgets.get(id) != null)
 				throw new RuntimeException(
@@ -145,7 +145,7 @@ public class Kamoflage
 		protected void initiate_internal() {
 			final Widget w = this;
 			final ThreadSignal ts = new ThreadSignal();
-			
+
 			kamoflage_context.runOnUiThread(new Runnable() {
 					public void run() {
 						w.create_internal_object();
@@ -161,7 +161,7 @@ public class Kamoflage
 				IntegerPair ignored = calculateMinimumSize();
 			}
 		}
-		
+
 		private int minimumCache_rw = 0;
 		private int minimumCache_rh = 0;
 		private static String tabbur = "";
@@ -174,29 +174,29 @@ public class Kamoflage
 			tabbur = ctab + "   ";
 			returnValue = calculateMinimumSizeInternal();
 			tabbur = ctab;
-			
+
 			minimumCache_rw = returnValue.a;
 			minimumCache_rh = returnValue.b;
 
 			if(DEBUG_LAYOUT) Log.v("Kamoflage", ctab + "CALCULATE: " + id + " minimum: " + returnValue.a + ", " + returnValue.b);
-			
+
 			return returnValue;
 		}
 		protected IntegerPair getMinimumSize() {
 			IntegerPair returnValue = new IntegerPair();
-			
+
 			returnValue.a = minimumCache_rw;
 			returnValue.b = minimumCache_rh;
 
 			return returnValue;
 		}
- 		
+
 		private static android.app.Activity act = null;
 		protected IntegerPair calculateMinimumSizeInternal() {
-			
+
 			int screen_w = 640; // just throw in some defaults
 			int screen_h = 480;
-			
+
 			if(act == null) act = (android.app.Activity)kamoflage_context;
 			if(act != null) {
 				android.view.WindowManager wm = act.getWindowManager();
@@ -204,19 +204,19 @@ public class Kamoflage
 				screen_w = d.getWidth();
 				screen_h = d.getHeight();
 			}
-			
+
 			int childWidthSpec, childHeightSpec;
 
 			childWidthSpec =
 				android.view.View.MeasureSpec.makeMeasureSpec(
 					screen_w,
-					android.view.View.MeasureSpec.AT_MOST);					
+					android.view.View.MeasureSpec.AT_MOST);
 
 			childHeightSpec =
 				android.view.View.MeasureSpec.makeMeasureSpec(
 					screen_h,
 					android.view.View.MeasureSpec.AT_MOST);
-			
+
 			android.view.View v = internal;
 
 			v.measure(childWidthSpec, childHeightSpec);
@@ -225,7 +225,7 @@ public class Kamoflage
 			ip.a = v.getMeasuredWidth();
 			ip.b = v.getMeasuredHeight();
 
-			return ip; 
+			return ip;
 		}
 
 		protected void create_internal_object() {
@@ -233,7 +233,7 @@ public class Kamoflage
 			throw new RuntimeException(
 				"The create_internal_object method was not properly overriden by sub class, this is a bug.");
 		}
-		
+
 		public void parse_widget(Element widget) {
 			title = widget.getAttribute("title");
 			id = widget.getAttribute("id");
@@ -241,7 +241,7 @@ public class Kamoflage
 			viewtrigger = widget.getAttribute("viewtrigger");
 
 			exturi = widget.getAttribute("exturi");
-			
+
 			String exp_str = widget.getAttribute("expand");
 			String fill_str = widget.getAttribute("fill");
 			String bord_str = widget.getAttribute("border");
@@ -276,19 +276,19 @@ public class Kamoflage
 		public boolean get_expand() {
 			return expand;
 		}
-		
+
 		public boolean get_fill() {
 			return fill;
 		}
-		
+
 		public void set_expand(boolean _xp) {
 			expand = _xp;
 		}
-		
+
 		public void set_fill(boolean _fl) {
 			fill = _fl;
 		}
-		
+
 		// show_now_no_push() tells Kamoflage to show this object to the user now. This might require multiple operations by Kamoflage, such as shifting tabs, scrolling through lists and so forth. (please note, this is not fully implemented yet... Currently it will only work on tabs directly controlling this object... no chain reactions..)
 		// this method does NOT push the Widget to the stack
 		public void show_now_no_push() {
@@ -305,7 +305,7 @@ public class Kamoflage
 	}
 
 	private static java.util.Stack kamoWidgetStack = new java.util.Stack();
-	
+
 	private static void pushWidgetToStack(Widget wid) {
 		if(kamoWidgetStack.size() == 10) {
 			kamoWidgetStack.remove(0);
@@ -321,11 +321,11 @@ public class Kamoflage
 			wid.show_now_no_push();
 		}
 	}
-	
+
 	public static Widget get_widget(String id) {
 		return widgets.get(id);
 	}
-	
+
 	static abstract class ContainerBase extends Widget {
 		abstract void clear();
 		abstract void add(Widget wid);
@@ -343,7 +343,7 @@ public class Kamoflage
 		private boolean horizontal;
 		private KamoflageLayout layout_obj;
 		private Vector<Widget> contained;
-		
+
 		// called from PARSER
 		public Container(String _name, String _align) {
 			contained = new Vector<Widget>();
@@ -353,7 +353,7 @@ public class Kamoflage
 			scrollable = false;
 
 			horizontal = false;
-			
+
 			if(align.equals("vertical")) {
 				horizontal = false;
 			} else {
@@ -376,9 +376,9 @@ public class Kamoflage
 			IntegerPair ip = new IntegerPair();
 			for(i = 0; i < c_s; i++) {
 				Widget cnt = contained.get(i);
-				
+
 				ip = cnt.calculateMinimumSize();
-				
+
 				if(horizontal) {
 					w += ip.a;
 					if(ip.b > h)
@@ -397,11 +397,11 @@ public class Kamoflage
 					dummy_bt.set_title("berub");
 				}
 				ip = dummy_bt.calculateMinimumSizeInternal();
-			} 
+			}
 
 			return ip;
 		}
-		
+
 		protected void create_internal_object() {
 			layout_obj = new KamoflageLayout(
 				this,
@@ -409,14 +409,14 @@ public class Kamoflage
 			if(scrollable) {
 				android.widget.ScrollView sv =
 					new android.widget.ScrollView(kamoflage_context);
-				
+
 				sv.addView(layout_obj);
 				sv.setFillViewport(true);
 
 				internal = sv;
 			} else internal = layout_obj;
 		}
-		
+
 		public void parse_container(Element widget) {
 			String scr_str = widget.getAttribute("scrollable");
 			String frmd_str = widget.getAttribute("framed");
@@ -426,7 +426,7 @@ public class Kamoflage
 
 			initiate_internal();
 		}
-		
+
 		// called from APPLICATION code
 		public Container(String titleNid, boolean _horizontal) {
 			contained = new Vector<Widget>();
@@ -437,26 +437,26 @@ public class Kamoflage
 
 			layout_obj = new KamoflageLayout(
 				this, title, kamoflage_context, horizontal, false, false);
-			
+
 			internal = layout_obj;
 
 			register_id();
 
 		}
-		
+
 		void clear() {
 			contained.clear();
 			layout_obj.removeAllViews();
 		}
-		
+
 		void add(Widget wid) {
 			contained.add(wid);
-			
+
 			wid.parent = this;
 			wid.topLevelWidget = false;
 			layout_obj.addKWidget(wid);
 		}
-		
+
 		void show_child(Widget child) {
 			if(DEBUG_LAYOUT) Log.v("Kamoflage", "show_child() in class Container not implemented.");
 		}
@@ -480,7 +480,7 @@ public class Kamoflage
 			rv.a = min_w;
 			rv.b = min_h;
 			return rv;
-		}		
+		}
 	}
 
 	// This is just a dummy container since we want to be able to add
@@ -490,7 +490,7 @@ public class Kamoflage
 		protected void create_internal_object() {
 			internal = new KamoflageVSwitch("tabSwitch", kamoflage_context);
 		}
-		
+
 		public TabsVSContainer(String kamoflageID) {
 			title = id = kamoflageID;
 			initiate_internal();
@@ -502,9 +502,9 @@ public class Kamoflage
 			rv.a = min_w;
 			rv.b = min_h;
 			return rv;
-		}		
+		}
 	}
-	
+
 	static class Tabs extends ContainerBase implements View.OnClickListener {
 
 		private KamoflageLayoutWidget knavi;
@@ -520,7 +520,7 @@ public class Kamoflage
 		boolean hidetabs = false;
 
 		private ChainedWidget current = null;
-		
+
 		void show_child(Widget child) {
 			int step = 0;
 			ChainedWidget searching_at = current;
@@ -530,21 +530,21 @@ public class Kamoflage
 			do {
 				if(searching_at.wid == child) {
 					if(searching_at == current) return;
-					
+
 					current = searching_at;
 					vf.showNext(step);
-					
+
 					if(tvl != null)
 						tvl.set_title(current.wid.title);
 
 					// Update native tab view book keeping
 					tabViewChanged(id, current.wid.id);
-					
+
 					// trigger an event, so that a
 					// listener can detect that the
 					// tab changed the view
 					handleOnValueChanged(id);
-					
+
 					return;
 				}
 				step++;
@@ -575,10 +575,10 @@ public class Kamoflage
 			if(cw != null) {
 				do {
 					ip = cw.wid.calculateMinimumSize();
-					
+
 					if(ip.a > w) w = ip.a;
 					if(ip.b > h) h = ip.b;
-					
+
 					cw = cw.next;
 				} while(cw != current);
 
@@ -595,13 +595,13 @@ public class Kamoflage
 
 				knavi.min_w = ipc.a;
 				knavi.min_h = ipc.b;
-				
+
 				ip.a = w > ipc.a ? w : ip.a; ip.b = h + ipc.b;
 			}
-			
+
 			return ip;
 		}
-		
+
 		String name;
 		protected void create_internal_object() {
 			base = new KamoflageLayout(this, name + ":base", kamoflage_context, false, false, false);
@@ -610,18 +610,18 @@ public class Kamoflage
 
 				kprev = new Button(name + ":nprev");
 				knext = new Button(name + ":nnext");
-				
+
 				prev = (android.widget.Button)kprev.getInternal();
 				prev.setText("<<");
 				next = (android.widget.Button)knext.getInternal();
 				next.setText(">>");
-				
+
 				prev.setOnClickListener(this);
 				next.setOnClickListener(this);
 
 				tvl = new Label(name + ":nlabel");
 				tvl.set_expand(true); tvl.set_fill(true);
-				
+
 //				tvl = ktvl.getInternal();
 //					new android.widget.TextView(kamoflage_context);
 
@@ -638,7 +638,7 @@ public class Kamoflage
 			tvs.set_expand(true); tvs.set_fill(true);
 
 			knavi = new KamoflageLayoutWidget(name + ":navig", navi);
-			
+
 			if(!hidetabs) {
 				if(tabs_on_top) {
 					base.addKWidget(knavi);
@@ -655,14 +655,14 @@ public class Kamoflage
 				tvs.parent = this;
 				tvs.topLevelWidget = false;
 			}
-			
+
 			internal = base;
 		}
-		
+
 		public Tabs(String _name, String _tabs_on_top, String _hidetabs) {
 			name = _name;
 			expand = true;
-			
+
 			if(_tabs_on_top.equals("false")) tabs_on_top = false;
 			if(_hidetabs.equals("true")) hidetabs = true;
 
@@ -672,7 +672,7 @@ public class Kamoflage
 		void clear() {
 		}
 
-		void add(Widget wid) {			
+		void add(Widget wid) {
 			vf.addKWidget(wid.internal);
 
 			wid.parent = this;
@@ -688,7 +688,7 @@ public class Kamoflage
 			} else {
 				cwg.next = current;
 				cwg.prev = current.prev;
-				
+
 				current.prev.next = cwg;
 				current.prev = cwg;
 			}
@@ -697,11 +697,11 @@ public class Kamoflage
 				tvl.set_title(current.wid.title);
 		}
 	}
-	
+
 	static class Window extends Container {
 		private String align;
 		private boolean fullscreen;
-		
+
 		Window(String _align, boolean _fullscreen) {
 			super("<window>", _align);
 			fullscreen = _fullscreen;
@@ -713,7 +713,7 @@ public class Kamoflage
 		protected void create_internal_object() {
 			internal = new android.widget.TextView(kamoflage_context);
 		}
-		
+
 		public Label() {
 			initiate_internal();
 		}
@@ -722,23 +722,23 @@ public class Kamoflage
 
 			title = titleNid;
 			id = titleNid;
-			
+
 			initiate_internal();
 
 			register_id();
 		}
 
-		
+
 		public void parse_label(Element label) {
 			((android.widget.TextView)internal).setText(title);
 		}
-		
+
 		public void set_title(String _title) {
 			title = _title;
 			((android.widget.TextView)internal).setText(title);
 		}
 	}
-	
+
 	static class Button extends Widget implements View.OnClickListener {
 
 		Button() {
@@ -750,7 +750,7 @@ public class Kamoflage
 			internal = new ButtonHelper(kamoflage_context);
 			((android.widget.Button)internal).setOnClickListener(this);
 		}
-		
+
 		public Button(String titleNid) {
 
 			title = titleNid;
@@ -761,22 +761,22 @@ public class Kamoflage
 			register_id();
 
 		}
-		
+
 		public void parse_button(Element button) {
 			((android.widget.Button)internal).setText(title);
 		}
-		
+
 		public void onClick(View v) {
 			do_automatic_action();
 			handleOnClick(id);
 		}
-		
+
 		public void set_title(String _title) {
 			title = _title;
 			((android.widget.Button)internal).setText(title);
 		}
 	}
-	
+
 	static class List extends Widget implements
 					 android.widget.AdapterView.OnItemSelectedListener,
 					 android.widget.AdapterView.OnItemClickListener {
@@ -784,7 +784,7 @@ public class Kamoflage
 		private Vector<String> titles;
 
 		private int item_selected; //used for the spinner case..
-		private ListAdapter lad;		
+		private ListAdapter lad;
 		private boolean dropdown;
 
 		private class ListAdapter extends android.widget.ArrayAdapter< Vector<String> > {
@@ -792,7 +792,7 @@ public class Kamoflage
 			int lr_rid;
 			int ll_rid;
 			boolean set_color_to_black;
-			
+
 			public ListAdapter(
 				boolean _set_color_to_black, Context ctx, int listRowId, int listLayoutId) {
 				super(ctx, listRowId);
@@ -809,12 +809,12 @@ public class Kamoflage
 						kamoflage_context.getSystemService(Context.LAYOUT_INFLATER_SERVICE);
 					v = vi.inflate(lr_rid, null);
 				}
-				
+
 				Vector<String> i = getItem(position);
 				if (i != null) {
 					android.widget.LinearLayout ll =
 						(android.widget.LinearLayout) v.findViewById(ll_rid);
-					
+
 					int k;
 					for(k = 0; k < i.size(); k++) {
 						android.widget.TextView tv;
@@ -829,12 +829,12 @@ public class Kamoflage
 							ll.addView(tv);
 						}
 						tv.setText(i.get(k));
-						
+
 					}
 				}
 				return v;
 			}
-			
+
 			@Override
 				public View getView(int position, View convertView, android.view.ViewGroup parent)
 			{
@@ -866,11 +866,11 @@ public class Kamoflage
 				dummy_bt.set_title("berub");
 			}
 			ip = dummy_bt.calculateMinimumSizeInternal();
-			
+
 			return ip;
 		}
 
-		
+
 		List() {
 			item_selected = 0;
 			dropdown = false;
@@ -881,9 +881,9 @@ public class Kamoflage
 				lad = new ListAdapter(false, kamoflage_context, listrow_resource_id, listlayout_resource_id);
 				android.widget.ListView lv = new android.widget.ListView(kamoflage_context);
 				lv.setAdapter(lad);
-				
+
 				lv.setChoiceMode(android.widget.ListView.CHOICE_MODE_SINGLE);
-				
+
 				internal = lv;
 //				lv.setOnItemSelectedListener(this);
 				lv.setOnItemClickListener(this);
@@ -898,14 +898,14 @@ public class Kamoflage
 //				sv.setOnItemClickListener(this);
 			}
 		}
-		
+
 		public void parse_list(Element list) {
 			String drpd_s = list.getAttribute("isdropdown");
 			if(drpd_s.equals("true")) {
 				dropdown = true;
 			}
 
-			titles = new Vector<String>();			
+			titles = new Vector<String>();
 
 			NodeList nodes = list.getChildNodes();
 			for (int i = 0; i < nodes.getLength(); i++) {
@@ -922,13 +922,13 @@ public class Kamoflage
 
 		public void onNothingSelected(android.widget.AdapterView parent) {
 		}
-		
+
 		public void onItemSelected(android.widget.AdapterView parent,
 					   android.view.View view, int position, long _id) {
 			item_selected = position;
 			handleOnSelectRow(id, position);
 		}
-		
+
 		public void onItemClick(android.widget.AdapterView parent,
 					android.view.View view, int position, long _id) {
 			item_selected = position;
@@ -938,11 +938,11 @@ public class Kamoflage
 		void add_row(Vector<String> data) {
 			lad.add(data);
 		}
-		
+
 		void remove_row(int sel) {
 			lad.remove(lad.getItem(sel));
 		}
-		
+
 		void clear() {
 			if(dropdown) {
 				((android.widget.Spinner)internal).setSelection(0);
@@ -956,7 +956,7 @@ public class Kamoflage
 				return ((android.widget.ListView)internal).getCheckedItemPosition();
 			}
 			return item_selected;
-			
+
 		}
 
 		String get_value(int sel, int col) {
@@ -967,8 +967,8 @@ public class Kamoflage
 			return("");
 		}
 	}
-	
-	static class Entry extends Widget implements android.text.TextWatcher, 
+
+	static class Entry extends Widget implements android.text.TextWatcher,
 			   android.widget.TextView.OnEditorActionListener {
 		Entry() {
 			initiate_internal();
@@ -980,7 +980,7 @@ public class Kamoflage
 			((android.widget.EditText)internal).addTextChangedListener(this);
 //			((android.widget.EditText)internal).setOnEditorActionListener(this);
 		}
-		
+
 		public void afterTextChanged(android.text.Editable s) {
 			if(skip_action) {
 				return;
@@ -992,7 +992,7 @@ public class Kamoflage
 		public void onTextChanged(CharSequence s, int start, int count, int after) {}
 
 		boolean skip_action = false;
-		
+
 		public boolean onEditorAction(android.widget.TextView v, int actionId, android.view.KeyEvent event) {
 			switch(actionId) {
 			case android.view.inputmethod.EditorInfo.IME_ACTION_DONE:
@@ -1005,7 +1005,7 @@ public class Kamoflage
 			if(DEBUG_LAYOUT) Log.v("Kamoflage", "Entry reported unknown action![" + Integer.toString(actionId) + "]");
 			return false;
 		}
-		
+
 		public void set_text(String _txt) {
 			skip_action = true;
 			((android.widget.EditText)internal).setText(_txt.subSequence(0, _txt.length()));
@@ -1026,7 +1026,7 @@ public class Kamoflage
 		protected void create_internal_object() {
 			internal = new CanvasHelper(nativeID, id, kamoflage_context);
 		}
-		
+
 		public void parse_canvas(Element canvas) {
 			initiate_internal();
 		}
@@ -1034,16 +1034,16 @@ public class Kamoflage
 		public void start_animation() {
 			CanvasHelper h = (CanvasHelper)internal;
 
-			h.start_animation();			
+			h.start_animation();
 		}
 
 		public void stop_animation() {
 			CanvasHelper h = (CanvasHelper)internal;
 
-			h.stop_animation();			
+			h.stop_animation();
 		}
 	}
-	
+
 	static class SVGCanvas extends Widget {
 
 		public SVGCanvas() {
@@ -1052,7 +1052,7 @@ public class Kamoflage
 		protected void create_internal_object() {
 			internal = new SVGCanvasHelper(nativeID, id, kamoflage_context);
 		}
-		
+
 		public void parse_svg_canvas(Element canvas) {
 			initiate_internal();
 		}
@@ -1060,57 +1060,13 @@ public class Kamoflage
 		public void start_animation() {
 			SVGCanvasHelper h = (SVGCanvasHelper)internal;
 
-			h.start_animation();			
+			h.start_animation();
 		}
 
 		public void stop_animation() {
 			SVGCanvasHelper h = (SVGCanvasHelper)internal;
 
-			h.stop_animation();			
-		}
-	}
-	
-	static class Surface extends Widget {
-
-		private int horsec = 16, versec = 16, hordiv = 1, verdiv = 16;
-
-		public Surface() {
-		}
-
-		protected void create_internal_object() {
-			internal = new SurfaceHelper(
-				id,
-				kamoflage_context,
-				horsec, versec, hordiv, verdiv);
-		}
-		
-		public void parse_surface(Element surface) {			
-			String hrzs_s = surface.getAttribute("horizontal");
-			String vers_s = surface.getAttribute("vertical");
-			String hrzd_s = surface.getAttribute("horizontal_div");
-			String verd_s = surface.getAttribute("vertical_div");
-			try {
-				horsec = Integer.valueOf(hrzs_s);
-			} catch (Exception e) {
-				horsec = 16;
-			}
-			try {
-				versec = Integer.valueOf(vers_s);
-			} catch (Exception e) {
-				versec = 16;
-			}
-			try {
-				hordiv = Integer.valueOf(hrzd_s);
-			} catch (Exception e) {
-				hordiv = 1;
-			}
-			try {
-				verdiv = Integer.valueOf(verd_s);
-			} catch (Exception e) {
-				verdiv = 16;
-			}
-
-			initiate_internal();
+			h.stop_animation();
 		}
 	}
 
@@ -1128,20 +1084,20 @@ public class Kamoflage
 		public void parse_checkbutton(Element xbutton) {
 			initiate_internal();
 		}
-		
+
 		public void onClick(View v) {
 			handleOnClick(id);
 		}
-		
+
 		public boolean get_state() {
 			return ((android.widget.CheckBox)internal).isChecked();
 		}
-		
+
 		public void set_state(boolean state) {
 			((android.widget.CheckBox)internal).setChecked(state);
 		}
 	}
-	
+
 	public static class Scale extends Widget implements android.widget.SeekBar.OnSeekBarChangeListener {
 		private double min, max, inc;
 		private android.widget.SeekBar sbar;
@@ -1154,22 +1110,22 @@ public class Kamoflage
 
 			layob.setOrientation(android.widget.LinearLayout.VERTICAL);
 			layob.setGravity(android.view.Gravity.CENTER_VERTICAL);
-			
+
 			sbar = new android.widget.SeekBar(kamoflage_context);
 			sbar.setOnSeekBarChangeListener(this);
 			sbar.setMax((int)((max - min) / inc));
 
 			layob.addView(sbar);
 			sbar.setVisibility(View.VISIBLE);
-			
+
 			internal = layob;
-		}			
-		
+		}
+
 		public Scale(String titleNid, boolean _hrz, double _min, double _max, double _inc) {
 
 			title = titleNid;
 			id = titleNid;
-			
+
 			min = _min;
 			max = _max;
 			inc = _inc;
@@ -1179,7 +1135,7 @@ public class Kamoflage
 			register_id();
 
 		}
-		
+
 		public void parse_scale(Element scale) {
 			String hrz_s = scale.getAttribute("horizontal");
 			String min_s = scale.getAttribute("min");
@@ -1203,7 +1159,7 @@ public class Kamoflage
 
 			initiate_internal();
 		}
-		
+
 		public void onProgressChanged(android.widget.SeekBar sb,
 					     int change, boolean fromUser) {
 			if(fromUser)
@@ -1212,7 +1168,7 @@ public class Kamoflage
 
 		public void onStartTrackingTouch(android.widget.SeekBar seekBar) {}
 		public void onStopTrackingTouch(android.widget.SeekBar seekBar) {}
-		
+
 		public void set_value(double val) {
 			if(val >= min && val <= max) {
 				double newval = (val - min) / inc;
@@ -1229,7 +1185,7 @@ public class Kamoflage
 	static class PollEventThread extends java.lang.Thread {
 		int msec;
 		String _id;
-		
+
 		PollEventThread(String id, int msec_intervall) {
 			super(id);
 			_id = id;
@@ -1245,12 +1201,12 @@ public class Kamoflage
 			}
 		}
 	}
-	
+
 	static class PollEvent extends Widget {
 		static Vector<PollEventThread> polthreads;
-		
+
 		PollEventThread thr;
-		
+
 		PollEvent() {
 			if(polthreads == null)
 				polthreads = new Vector<PollEventThread>();
@@ -1269,7 +1225,7 @@ public class Kamoflage
 			polthreads.add(thr);
 		}
 	}
-	
+
 	static class UserEvent extends Widget {
 		UserEvent() {
 		}
@@ -1279,7 +1235,7 @@ public class Kamoflage
 		void trigger_user_event() {
 			do_automatic_action();
 		}
-		
+
 	}
 
 	public static void executeEventOnUI() {
@@ -1306,10 +1262,10 @@ public class Kamoflage
 			kamoflage_context.startActivity(browserIntent);
 		}
 	}
-		
+
 	private static String dialog_title, dialog_message;
 	private static int dialog_identifier_var;
-	
+
 	public static final int BUSY_DIALOG = 10;
 	public static final int NOTIFICATION_DIALOG = 20;
 	public static final int YESNO_DIALOG = 30;
@@ -1321,7 +1277,7 @@ public class Kamoflage
 		dialog_identifier_var = identifier_var;
 		kamoflage_context.showDialog(dialog_type);
 	}
-		
+
 	public static void hideKamoflageDialog(int _dialog_type) {
 		final int dialog_type = _dialog_type;
 		kamoflage_context.runOnUiThread(new Runnable() {
@@ -1330,7 +1286,7 @@ public class Kamoflage
 				}
 			});
 	}
-		
+
 	public static Dialog onCreateDialog(int dialogID) {
 		AlertDialog.Builder builder = new AlertDialog.Builder(kamoflage_context);
 		builder.setTitle(dialog_title);
@@ -1357,7 +1313,7 @@ public class Kamoflage
 				}
 			}
 			);
-			
+
 			return builder.create();
 		}
 		case NOTIFICATION_DIALOG:
@@ -1376,7 +1332,7 @@ public class Kamoflage
 				}
 			}
 			);
-			
+
 			return builder.create();
 		}
 		case YESNO_DIALOG:
@@ -1417,7 +1373,7 @@ public class Kamoflage
 
 	static class AdditionalNativeThread extends java.lang.Thread {
 		private int identity_hash;
-		
+
 		public AdditionalNativeThread(int _identity_hash) {
 			identity_hash = _identity_hash;
 		}
@@ -1432,7 +1388,7 @@ public class Kamoflage
 
 		ant.start();
 	}
-	
+
 	static class KamoflageMainNativeThread extends java.lang.Thread {
 		KamoflageMainNativeThread() {
 			super("MainKamoflageNativeThread");
@@ -1446,8 +1402,8 @@ public class Kamoflage
 
 	public View parse(InputStream file, ProgressBar mProgress, int current_progress) {
 		View returnval = null;
-		
-		try {			
+
+		try {
 			DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
 			DocumentBuilder builder = factory.newDocumentBuilder();
 			Document dom = builder.parse(file);
@@ -1456,7 +1412,7 @@ public class Kamoflage
 				returnval = KamoflageFactory.parse_yapplication(
 					kamoflage_context,
 					root, mProgress, current_progress);
-				}		       
+				}
 		} catch (javax.xml.parsers.ParserConfigurationException e) {
 			android.widget.TextView tv = new android.widget.TextView(kamoflage_context);
 			tv.setText(e.toString());
@@ -1470,7 +1426,7 @@ public class Kamoflage
 			tv.setText(e.toString());
 			returnval = tv;
 		}
-		
+
 		if(returnval == null) {
 			android.widget.TextView tv = new android.widget.TextView(kamoflage_context);
 			tv.setText("GUI was empty.");
@@ -1487,11 +1443,9 @@ public class Kamoflage
 		float widthInInches, float heightInInches,
 		float horizontalResolution, float verticalResolution,
 		int edgeSlop);
-	
+
 	public native static void canvasEvent(long id, int evt, int x, int y);
 
-	public native static void handleOnSurface(String id, int evt, int x, int y);
-	
 	public native static void handleOnModify(String id);
 	public native static void handleOnValueChanged(String id);
 	public native static void handleOnSelectRow(String id, int row_id);
@@ -1513,7 +1467,6 @@ public class Kamoflage
 	public native static long addButton(String id, Object wid);
 	public native static long addCanvas(String id, Object wid);
 	public native static long addSVGCanvas(String id, Object wid);
-	public native static long addSurface(String id, Object wid);
 	public native static long addList(String id, Object wid);
 	public native static long addEntry(String id, Object wid);
 	public native static long addScale(String id, Object wid);
@@ -1522,7 +1475,7 @@ public class Kamoflage
 	public native static long addWindow(String id, Object wid);
 	public native static long addPollEvent(String id, Object wid);
 	public native static long addUserEvent(String id, Object wid);
-	
+
 	public native static void runMainNativeThread();
 
 }
@@ -1535,7 +1488,7 @@ public class Kamoflage
 			pev.setNativeID(Kamoflage.addPollEvent(pev.get_id(), pev));
 			return null;
 		}
-		
+
 		private static Kamoflage.Widget parse_userevent(Element ue) {
 			Kamoflage.UserEvent uev = new Kamoflage.UserEvent();
 			uev.parse_widget(ue);
@@ -1543,7 +1496,7 @@ public class Kamoflage
 						uev.get_id(), uev));
 			return null;
 		}
-		
+
 		private static Kamoflage.Widget parse_label(Element label) {
 			Kamoflage.Label lbl = new Kamoflage.Label();
 			lbl.parse_widget(label);
@@ -1551,7 +1504,7 @@ public class Kamoflage
 			lbl.setNativeID(Kamoflage.addLabel(lbl.get_id(), lbl));
 			return lbl;
 		}
-		
+
 		private static Kamoflage.Widget parse_button(Element button) {
 			Kamoflage.Button btn = new Kamoflage.Button();
 			btn.parse_widget(button);
@@ -1567,7 +1520,7 @@ public class Kamoflage
 			cnv.parse_canvas(canvas);
 			return cnv;
 		}
-		
+
 		private static Kamoflage.Widget parse_svg_canvas(Element canvas) {
 			Kamoflage.SVGCanvas cnv = new Kamoflage.SVGCanvas();
 			cnv.parse_widget(canvas);
@@ -1575,15 +1528,7 @@ public class Kamoflage
 			cnv.parse_svg_canvas(canvas);
 			return cnv;
 		}
-		
-		private static Kamoflage.Widget parse_surface(Element surface) {
-			Kamoflage.Surface srf = new Kamoflage.Surface();
-			srf.parse_widget(surface);
-			srf.parse_surface(surface);
-			srf.setNativeID(Kamoflage.addSurface(srf.get_id(), srf));
-			return srf;
-		}
-		
+
 		private static Kamoflage.Widget parse_list(Element list) {
 			Kamoflage.List lst = new Kamoflage.List();
 			lst.parse_widget(list);
@@ -1591,14 +1536,14 @@ public class Kamoflage
 			lst.setNativeID(Kamoflage.addList(lst.get_id(), lst));
 			return lst;
 		}
-		
+
 		private static Kamoflage.Widget parse_entry(Element entry) {
 			Kamoflage.Entry ent = new Kamoflage.Entry();
 			ent.parse_widget(entry);
 			ent.setNativeID(Kamoflage.addEntry(ent.get_id(), ent));
 			return ent;
 		}
-		
+
 		private static Kamoflage.Widget parse_checkbutton(Element xbutton) {
 			Kamoflage.CheckButton xbtn = new Kamoflage.CheckButton();
 			xbtn.parse_widget(xbutton);
@@ -1614,7 +1559,7 @@ public class Kamoflage
 			scl.setNativeID(Kamoflage.addScale(scl.get_id(), scl));
 			return scl;
 		}
-		
+
 		private static Kamoflage.Widget parse_container(Element container) {
 			String align, fullscreen_str;
 
@@ -1627,20 +1572,20 @@ public class Kamoflage
 
 			// Parse container specifics
 			con.parse_container(container);
-			
+
 			// parse any widget nodes inside the window
 			parse_node(con, container);
 
 			con.setNativeID(Kamoflage.addContainer(con.get_id(), con));
 			return con;
 		}
-		
+
 		private static Kamoflage.Widget parse_tabs(Element tabs) {
-			String tabs_on_top;			
+			String tabs_on_top;
 			tabs_on_top = tabs.getAttribute("tabsontop");
-			String hidetabs;			
+			String hidetabs;
 			hidetabs = tabs.getAttribute("hidetabs");
-			
+
 			Kamoflage.Tabs tbs = new Kamoflage.Tabs(tabs.getAttribute("id"),
 								tabs_on_top,
 								hidetabs);
@@ -1655,7 +1600,7 @@ public class Kamoflage
 
 			return tbs;
 		}
-		
+
 		private static Kamoflage.Widget parse_window(Element window) {
 			String align, fullscreen_str;
 
@@ -1670,14 +1615,14 @@ public class Kamoflage
 
 			// Parse container specifics
 			win.parse_container(window);
-			
+
 			// parse any widget nodes inside the window
 			parse_node(win, window);
 
 			win.setNativeID(Kamoflage.addWindow(win.get_id(), win));
 			return win;
 		}
-		
+
 		private static void parse_node(Kamoflage.ContainerBase parent, Element node) {
 			NodeList nodes = node.getChildNodes();
 
@@ -1701,9 +1646,6 @@ public class Kamoflage
 				if(n.getNodeName().equals("svgcanvas")) {
 					w = parse_svg_canvas((Element)n);
 				}
-				if(n.getNodeName().equals("surface")) {
-					w = parse_surface((Element)n);
-				}
 				if(n.getNodeName().equals("list")) {
 					w = parse_list((Element)n);
 				}
@@ -1719,17 +1661,17 @@ public class Kamoflage
 				if(n.getNodeName().equals("tabs")) {
 					w = parse_tabs((Element)n);
 				}
-				
+
 				if(w != null)
 					parent.add(w);
-				
+
 			}
 		}
 
 		static int current_progress = 0;
 		static ProgressBar mProgress = null;
 		static android.app.Activity kamoflage_context;
-	
+
 		public static View parse_yapplication(
 			android.app.Activity kaco,
 			Element yapp,
@@ -1740,7 +1682,7 @@ public class Kamoflage
 
 			mProgress = _mProgress;
 			current_progress = _current_progress;
-			int progress_per_node = (100 - current_progress) / 
+			int progress_per_node = (100 - current_progress) /
 				nodes.getLength();
 
 			if(progress_per_node <= 0) progress_per_node = 1;
@@ -1766,7 +1708,7 @@ public class Kamoflage
 					if(current_progress > 100)
 						current_progress = 100;
 				}
-				
+
 				kamoflage_context.runOnUiThread(new Runnable() {
 						public void run() {
 							mProgress.setProgress(current_progress);
@@ -1784,4 +1726,3 @@ public class Kamoflage
 			return retval;
 		}
 	}
-	
