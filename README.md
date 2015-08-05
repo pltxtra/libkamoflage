@@ -41,7 +41,7 @@ make release
 
 # usage
 
-Include libkamofage.so as a prebuilt shared library in your Android.mk file. Please refer to the
+Include libkamoflage.so as a prebuilt shared library in your Android.mk file. Please refer to the
 Android NDK documentation for information about specifics.
 
 Include libkamoflage.jar in your libs directory. Please refer to the Android SDK documentation for
