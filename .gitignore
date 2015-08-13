@@ -28,3 +28,4 @@ proguard/
 Makefile
 android/libsvgandroid
 export
+*~
