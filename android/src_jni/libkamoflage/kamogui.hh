@@ -39,6 +39,7 @@
 #include <vector>
 #include <stack>
 #include <set>
+#include <memory>
 #include <functional>
 
 #include "jngldrum/jexception.hh"
@@ -740,6 +741,27 @@ namespace KammoGUI {
 
 		void set_value(double val);
 		double get_value(void);
+	};
+
+	class SensorEvent {
+	public:
+		enum Type {
+			Accelerometer
+		};
+
+		Type type;
+		float values[3];
+
+		class Listener {
+		public:
+			virtual void on_sensor_event(std::shared_ptr<SensorEvent> event) = 0;
+		};
+
+		static void register_listener(std::shared_ptr<Listener> listener);
+		static void handle_event(float v1, float v2, float v3);
+
+	private:
+		static std::vector<std::shared_ptr<Listener> > listeners;
 	};
 
 	class PollEvent : public Widget {

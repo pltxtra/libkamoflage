@@ -41,6 +41,7 @@ LOCAL_CPPFLAGS += -std=c++11
 LIBKAMOFLAGE_SOURCES = \
 libkamoflage/kamogui.cc libkamoflage/kamogui.hh \
 libkamoflage/kamogui_svg_canvas.cc \
+libkamoflage/kamogui_sensorevent.cc \
 libkamoflage/kamo_xml.cc libkamoflage/kamo_xml.hh \
 libkamoflage/kamogui_scale_detector.cc libkamoflage/kamogui_scale_detector.hh \
 libkamoflage/kamogui_fling_detector.cc libkamoflage/kamogui_fling_detector.hh
