@@ -1067,24 +1067,31 @@ KammoGUI::List::iterator KammoGUI::List::get_selected() {
 }
 
 std::string KammoGUI::List::get_value(const KammoGUI::List::iterator &iter, int col) {
+	JNIEnv *env = NULL;
+	env = get_env_for_thread();
+	env->PushLocalFrame(32);
+
 	pthread_t self = pthread_self();
+
 	GET_INTERNAL_CLASS(jc,internal);
 	static jmethodID mid = __ENV->GetMethodID(jc, "get_value", "(II)Ljava/lang/String;");
 
-	KAMOFLAGE_DEBUG_("Calling List.get_value()...\n"); fflush(0);
+	KAMOFLAGE_ERROR("Calling List.get_value(%d, %d)...\n", iter.iter->iter, col); fflush(0);
 
 	jstring jstr = (jstring)__ENV->CallObjectMethod(internal, mid, iter.iter->iter, col);
-	KAMOFLAGE_DEBUG_(" --- List.get_value() called (%p)!!\n", jstr); fflush(0);
+	KAMOFLAGE_ERROR(" --- List.get_value() called (%p)!!\n", jstr); fflush(0);
 
 	if(__ENV->ExceptionOccurred()) {
 		__ENV->ExceptionDescribe();
 	}
 
 	const char *str = __ENV->GetStringUTFChars(jstr, NULL);
-	KAMOFLAGE_DEBUG_(" --- List.get_value() converted!!\n"); fflush(0);
-	std::string retval = str;
+	KAMOFLAGE_ERROR(" --- List.get_value() converted -- %p -> %s!!\n", str, str ? str : "<NULL>"); fflush(0);
+	std::string retval = std::string(str);
 	__ENV->ReleaseStringUTFChars(jstr, str);
-	KAMOFLAGE_DEBUG_(" ---                            ]%s[\n", retval.c_str()); fflush(0);
+	KAMOFLAGE_ERROR(" ---       (%p) ]%s[\n", retval.c_str(), retval.c_str()); fflush(0);
+
+	env->PopLocalFrame(NULL);
 
 	return retval;
 }

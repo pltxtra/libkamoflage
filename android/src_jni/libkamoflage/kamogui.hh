@@ -759,9 +759,6 @@ namespace KammoGUI {
 
 		static void register_listener(std::shared_ptr<Listener> listener);
 		static void handle_event(float v1, float v2, float v3);
-
-	private:
-		static std::vector<std::shared_ptr<Listener> > listeners;
 	};
 
 	class PollEvent : public Widget {

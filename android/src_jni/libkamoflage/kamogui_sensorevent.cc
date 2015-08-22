@@ -30,11 +30,11 @@
 namespace KammoGUI {
 
 	static std::mutex listeners_lock;
-	std::vector<std::shared_ptr<SensorEvent::Listener> > SensorEvent::listeners;
+	static std::vector<SensorEvent::Listener*> listeners;
 
 	void SensorEvent::register_listener(std::shared_ptr<SensorEvent::Listener> listener) {
 		std::lock_guard<std::mutex> guard(listeners_lock);
-		listeners.push_back(listener);
+		listeners.push_back(listener.get());
 	}
 
 	void SensorEvent::handle_event(float v1, float v2, float v3) {
