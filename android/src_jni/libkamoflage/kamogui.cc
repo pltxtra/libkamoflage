@@ -277,10 +277,8 @@ void KammoGUI::EventHandler::trigger_user_event(KammoGUI::UserEvent *ue, std::ma
 	pthread_t self = pthread_self();
 	// OK, prepare to call....
 	GET_INTERNAL_CLASS(jc, wid->internal);
-	static jmethodID mid = __ENV->GetMethodID(
-		jc,
-		"trigger_user_event","()V");
-
+	static jmethodID mid = __ENV->GetMethodID(jc,
+						  "trigger_user_event","()V");
 	// OK, finally time to call the trigger_user_event() java method.. PUH!
 	__ENV->CallVoidMethod(
 		wid->internal, mid // object and method reference
@@ -992,6 +990,8 @@ void KammoGUI::List::trigger_on_select_row_event(jint rowid) {
 
 
 void KammoGUI::List::add_row(std::vector<std::string> data) {
+	rows.push_back(data);
+
 	pthread_t self = pthread_self();
 
 	__ENV->PushLocalFrame(32);
@@ -1009,7 +1009,6 @@ void KammoGUI::List::add_row(std::vector<std::string> data) {
 	static jmethodID vec_new = __ENV->GetMethodID( vec_class, "<init>","()V");
 	// Get "addElement" method id of clase vector
 	static jmethodID vec_add = __ENV->GetMethodID( vec_class, "addElement", "(Ljava/lang/Object;)V");
-
 	std::vector<std::string>::iterator k;
 
 	// create vector object
@@ -1026,6 +1025,14 @@ void KammoGUI::List::add_row(std::vector<std::string> data) {
 }
 
 void KammoGUI::List::remove_row(KammoGUI::List::iterator &iter) {
+	int kount = 0;
+	for(auto k = rows.begin(); k != rows.end(); k++, kount++) {
+		if(kount == iter.iter->iter) {
+			rows.erase(k);
+			break;
+		}
+	}
+
 	pthread_t self = pthread_self();
 	GET_INTERNAL_CLASS(jc,internal);
 	static jmethodID mid = __ENV->GetMethodID(jc, "remove_row", "(I)V");
@@ -1037,6 +1044,8 @@ void KammoGUI::List::remove_row(KammoGUI::List::iterator &iter) {
 }
 
 void KammoGUI::List::clear(void) {
+	rows.clear();
+
 	pthread_t self = pthread_self();
 	GET_INTERNAL_CLASS(jc,internal);
 	static jmethodID clear = __ENV->GetMethodID(jc, "clear", "()V");
@@ -1067,10 +1076,7 @@ KammoGUI::List::iterator KammoGUI::List::get_selected() {
 }
 
 std::string KammoGUI::List::get_value(const KammoGUI::List::iterator &iter, int col) {
-	JNIEnv *env = NULL;
-	env = get_env_for_thread();
-	env->PushLocalFrame(32);
-
+#if 0
 	pthread_t self = pthread_self();
 
 	GET_INTERNAL_CLASS(jc,internal);
@@ -1083,17 +1089,23 @@ std::string KammoGUI::List::get_value(const KammoGUI::List::iterator &iter, int 
 
 	if(__ENV->ExceptionOccurred()) {
 		__ENV->ExceptionDescribe();
+		return "";
 	}
-
 	const char *str = __ENV->GetStringUTFChars(jstr, NULL);
 	KAMOFLAGE_ERROR(" --- List.get_value() converted -- %p -> %s!!\n", str, str ? str : "<NULL>"); fflush(0);
 	std::string retval = std::string(str);
 	__ENV->ReleaseStringUTFChars(jstr, str);
 	KAMOFLAGE_ERROR(" ---       (%p) ]%s[\n", retval.c_str(), retval.c_str()); fflush(0);
 
-	env->PopLocalFrame(NULL);
-
 	return retval;
+#else
+	auto r = iter.iter->iter;
+	if(r >= 0 && r < (int)rows.size()) {
+		if(col >= 0 && col < (int)rows[r].size())
+			return rows[r][col];
+	}
+	return "";
+#endif
 }
 
 /************* Entry **************/
@@ -2044,17 +2056,16 @@ extern "C" {
 		__setup_env_for_thread(env);
 		const char *id = (*env).GetStringUTFChars(j_id, NULL);
 
-
 		KammoGUI::Widget *w = NULL;
 		KammoGUI::get_widget(&w, id);
+
+		(*env).ReleaseStringUTFChars(j_id, id);
 
 		if(w != NULL) {
 			KammoGUI::Surface *srf = (KammoGUI::Surface *)w;
 			srf->trigger_surface_event((KammoGUI::surfaceEvent_t)evt,
 						   x, y);
 		}
-
-		(*env).ReleaseStringUTFChars(j_id, id);
 
 		KammoGUI::Canvas::flush_invalidation_queue();
 	}
@@ -2064,15 +2075,17 @@ extern "C" {
 		__setup_env_for_thread(env);
 		const char *id = (*env).GetStringUTFChars(j_id, NULL);
 
-
 		KammoGUI::Widget *w = NULL;
 		KammoGUI::get_widget(&w, id);
+
 		KAMOFLAGE_DEBUG_("Calling handle_on_modify for %s\n", id); fflush(0);
+
+		(*env).ReleaseStringUTFChars(j_id, id);
+
 		if(w != NULL)
 			KammoGUI::EventHandler::handle_on_modify(w);
 		KAMOFLAGE_DEBUG_("Finished handle_on_modify for %s\n", id); fflush(0);
 
-		(*env).ReleaseStringUTFChars(j_id, id);
 
 		KammoGUI::Canvas::flush_invalidation_queue();
 	}
@@ -2080,15 +2093,16 @@ extern "C" {
 	JNIEXPORT void JNICALL Java_com_toolkits_kamoflage_Kamoflage_handleOnValueChanged
 	(JNIEnv * env, jclass jc, jstring j_id) {
 		__setup_env_for_thread(env);
-		const char *id = (*env).GetStringUTFChars(j_id, NULL);
 
+		const char *id = (*env).GetStringUTFChars(j_id, NULL);
 
 		KammoGUI::Widget *w = NULL;
 		KammoGUI::get_widget(&w, id);
 
+		(*env).ReleaseStringUTFChars(j_id, id);
+
 		if(w != NULL)
 			KammoGUI::EventHandler::handle_on_value_changed(w);
-		(*env).ReleaseStringUTFChars(j_id, id);
 
 		KammoGUI::Canvas::flush_invalidation_queue();
 	}
@@ -2096,18 +2110,18 @@ extern "C" {
 	JNIEXPORT void JNICALL Java_com_toolkits_kamoflage_Kamoflage_handleOnSelectRow
 	(JNIEnv * env, jclass jc, jstring j_id, jint row_id) {
 		__setup_env_for_thread(env);
-		const char *id = (*env).GetStringUTFChars(j_id, NULL);
 
+		const char *id = (*env).GetStringUTFChars(j_id, NULL);
 
 		KammoGUI::Widget *w = NULL;
 		KammoGUI::get_widget(&w, id);
+
+		(*env).ReleaseStringUTFChars(j_id, id);
 
 		if(w != NULL) {
 			KammoGUI::List *lst = (KammoGUI::List *)w;
 			lst->trigger_on_select_row_event(row_id);
 		}
-
-		(*env).ReleaseStringUTFChars(j_id, id);
 
 		KammoGUI::Canvas::flush_invalidation_queue();
 	}
@@ -2117,14 +2131,13 @@ extern "C" {
 		__setup_env_for_thread(env);
 		const char *id = (*env).GetStringUTFChars(j_id, NULL);
 
-
 		KammoGUI::Widget *w = NULL;
 		KammoGUI::get_widget(&w, id);
 
+		(*env).ReleaseStringUTFChars(j_id, id);
+
 		if(w != NULL)
 			KammoGUI::EventHandler::handle_on_click(w);
-
-		(*env).ReleaseStringUTFChars(j_id, id);
 
 		KammoGUI::Canvas::flush_invalidation_queue();
 	}
@@ -2138,10 +2151,10 @@ extern "C" {
 		KammoGUI::Widget *w = NULL;
 		KammoGUI::get_widget(&w, id);
 
+		(*env).ReleaseStringUTFChars(j_id, id);
+
 		if(w != NULL)
 			KammoGUI::EventHandler::handle_on_double_click(w);
-
-		(*env).ReleaseStringUTFChars(j_id, id);
 
 		KammoGUI::Canvas::flush_invalidation_queue();
 	}
@@ -2154,10 +2167,11 @@ extern "C" {
 		KammoGUI::Widget *w = NULL;
 		KammoGUI::get_widget(&w, id);
 
+		(*env).ReleaseStringUTFChars(j_id, id);
+
 		if(w != NULL)
 			KammoGUI::EventHandler::handle_on_poll(w);
 
-		(*env).ReleaseStringUTFChars(j_id, id);
 		KammoGUI::Canvas::flush_invalidation_queue();
 	}
 
@@ -2172,12 +2186,12 @@ extern "C" {
 		KammoGUI::Widget *w_view = NULL;
 		KammoGUI::get_widget(&w_view, view_id);
 
+		(*env).ReleaseStringUTFChars(j_tab_id, tab_id);
+		(*env).ReleaseStringUTFChars(j_view_id, view_id);
+
 		if(w_tab != NULL && w_view != NULL) {
 			((KammoGUI::Tabs *)w_tab)->set_current_view(w_view);
 		}
-
-		(*env).ReleaseStringUTFChars(j_tab_id, tab_id);
-		(*env).ReleaseStringUTFChars(j_view_id, view_id);
 
 		KammoGUI::Canvas::flush_invalidation_queue();
 	}

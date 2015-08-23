@@ -668,6 +668,7 @@ namespace KammoGUI {
 		std::vector<std::string> titles;
 		std::vector<int> widths;
 
+		std::vector<std::vector<std::string> >rows;
 	public:
 		class iterator {
 		private:

@@ -47,7 +47,7 @@ class KXMLDoc {
 		public:
 			std::string name;
 			std::string value;
-			
+
 			Attribute(const std::string &_name, const std::string &_value)
 			{
 				name = _name;
@@ -56,63 +56,57 @@ class KXMLDoc {
 		};
 
 		unsigned int ref_count;
-		
+
 		std::string name;
 		unsigned short offset;
-		
+
 		std::vector<std::string> values;
 		std::vector<std::vector<Element *> > children;
 		std::vector<std::vector<Attribute *> > attributes;
-		
+
 		Element *parent;
 
 		Element(const std::string &_name, std::vector<Attribute *> &_attributes, Element *_parent)
 		{
 			ref_count = 0;
-			
+
 			name = _name;
 			attributes.push_back(_attributes);
-			
+
 			offset = 0;
 			values.push_back(std::string());
 			children.push_back(std::vector<Element *>());
 			parent = _parent;
 		}
-		~Element(void)
-		{
-			for (unsigned int i = 0; i < attributes.size(); i++) {
-				for (unsigned int j = 0; j < attributes[i].size(); j++)
-					delete attributes[i][j];
-			}
-		}
+		~Element(void);
 
 		static void inc_ref_count(Element *e);
 		static bool dec_ref_count(Element *e);
-		
+
 		std::string to_string(unsigned short _indent) const
 		{
 			std::ostringstream stream;
 			for (int off = 0; off <= offset; off++) {
 				for (int i = 0; i < _indent; i++)
 					stream << "\t";
-				
+
 				stream << "<" << name;
 				for (unsigned int i = 0; i < attributes[off].size(); i++)
 					stream << " " << attributes[off][i]->name << "=\"" << attributes[off][i]->value << "\"";
-				
+
 				stream << ">";
-				
+
 				stream << values[off];
-				
+
 				for (unsigned int i = 0; i < children[off].size(); i++) {
 					stream << std::endl;
 					stream << children[off][i]->to_string(_indent+1);
 					for (int j = 0; j < _indent; j++)
 						stream << "\t";
 				}
-				
+
 				stream << "</" << name << ">" << std::endl;
-			} 
+			}
 			return stream.str();
 		}
 
@@ -126,33 +120,33 @@ class KXMLDoc {
 				for (int i = 0; i < attributes[off].size(); i++)
 					std::cout << " " << attributes[off][i]->name << "=\"" << attributes[off][i]->value << "\"";
 				std::cout << ">";
-				
+
 				std::cout << values[off];
-				
+
 				for (int i = 0; i < children[off].size(); i++) {
 					std::cout << std::endl;
 					children[off][i]->print(_indent+1);
 					for (int i = 0; i < _indent; i++)
 						std::cout << "\t";
 				}
-				
+
 				std::cout << "</" << name << ">" << std::endl;
 			}
 		}
 #endif
 	};
-	
+
 	static void element_start(void *obj, const char *el, const char **attr);
 	static void element_end(void *obj, const char *el);
 	static void character_data(void *obj, const char *, int);
-	
+
 	Element *root_element;
 	unsigned int element_sub_index;
 
 protected:
 	KXMLDoc(KXMLDoc::Element *);
 	KXMLDoc(KXMLDoc::Element *, unsigned int);
-	
+
 public:
 	template<class charT, class Traits>
 	friend std::basic_istream<charT, Traits> &operator>>(std::basic_istream<charT, Traits> &, KXMLDoc &);
@@ -188,12 +182,12 @@ std::basic_istream<charT, Traits> &operator>>(std::basic_istream<charT, Traits> 
 		KXMLDoc::Element::dec_ref_count(xmlObj.root_element);
 		xmlObj.root_element = NULL;
 	}
-	
+
 	XML_Parser parser = XML_ParserCreate(NULL);
 	XML_SetUserData(parser, (void *)&xmlObj);
 	XML_SetElementHandler(parser, KXMLDoc::element_start, KXMLDoc::element_end);
 	XML_SetCharacterDataHandler(parser, KXMLDoc::character_data);
-	
+
 	std::string buffer;
 	bool done = false;
 	std::string emsg = "";
@@ -207,13 +201,13 @@ std::basic_istream<charT, Traits> &operator>>(std::basic_istream<charT, Traits> 
 		}
 	} while (!done);
 
-	XML_ParserFree(parser); 
-	
-	if (emsg.size() > 0 ) {			
+	XML_ParserFree(parser);
+
+	if (emsg.size() > 0 ) {
 		xmlObj.root_element = NULL;
-		throw jException(emsg, jException::sanity_error);	
+		throw jException(emsg, jException::sanity_error);
 	}
-	
+
         return is;
 }
 
