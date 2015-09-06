@@ -24,7 +24,7 @@
 #include <mutex>
 #include <thread>
 
-#define __DO_KAMOFLAGE_DEBUG
+//#define __DO_KAMOFLAGE_DEBUG
 #include "kamoflage_debug.hh"
 
 namespace KammoGUI {

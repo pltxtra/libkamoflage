@@ -83,32 +83,7 @@ class KXMLDoc {
 		static void inc_ref_count(Element *e);
 		static bool dec_ref_count(Element *e);
 
-		std::string to_string(unsigned short _indent) const
-		{
-			std::ostringstream stream;
-			for (int off = 0; off <= offset; off++) {
-				for (int i = 0; i < _indent; i++)
-					stream << "\t";
-
-				stream << "<" << name;
-				for (unsigned int i = 0; i < attributes[off].size(); i++)
-					stream << " " << attributes[off][i]->name << "=\"" << attributes[off][i]->value << "\"";
-
-				stream << ">";
-
-				stream << values[off];
-
-				for (unsigned int i = 0; i < children[off].size(); i++) {
-					stream << std::endl;
-					stream << children[off][i]->to_string(_indent+1);
-					for (int j = 0; j < _indent; j++)
-						stream << "\t";
-				}
-
-				stream << "</" << name << ">" << std::endl;
-			}
-			return stream.str();
-		}
+		std::string to_string(unsigned short _indent) const;
 
 #ifdef DEBUG
 		void print(unsigned short _indent) const
@@ -158,6 +133,7 @@ public:
 	const std::string &get_value(void) const;
 	const std::string &get_attr(const std::string &) const;
 	std::string to_string() const;
+	void debug();
 	unsigned int get_count(void) const;
 	unsigned int get_count(const std::string &) const;
 	KXMLDoc operator[](const std::string &) const;

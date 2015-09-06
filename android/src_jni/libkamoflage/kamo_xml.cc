@@ -17,8 +17,6 @@
  *
  */
 
-/* $Id: kamo_xml.cc,v 1.3 2009/03/31 12:25:23 pltxtra Exp $ */
-
 #include "kamo_xml.hh"
 
 #ifdef DEBUG
@@ -41,6 +39,33 @@ KXMLDoc::Element::~Element() {
 		}
 	}
 	KAMOFLAGE_DEBUG("End KXMLDoc::Element::~Element()\n");
+}
+
+std::string KXMLDoc::Element::to_string(unsigned short _indent) const {
+	std::ostringstream stream;
+	KAMOFLAGE_DEBUG("Element::to_string(%d) -- offset: %d\n", _indent, offset);
+	for (int off = 0; off <= offset; off++) {
+		for (int i = 0; i < _indent; i++)
+			stream << "\t";
+
+		stream << "<" << name;
+		for (unsigned int i = 0; i < attributes[off].size(); i++)
+			stream << " " << attributes[off][i]->name << "=\"" << attributes[off][i]->value << "\"";
+
+		stream << ">";
+
+		stream << values[off];
+
+		for (unsigned int i = 0; i < children[off].size(); i++) {
+			stream << std::endl;
+			stream << children[off][i]->to_string(_indent+1);
+			for (int j = 0; j < _indent; j++)
+				stream << "\t";
+		}
+
+		stream << "</" << name << ">" << std::endl;
+	}
+	return stream.str();
 }
 
 void KXMLDoc::Element::inc_ref_count(Element *e)
@@ -216,6 +241,13 @@ unsigned int KXMLDoc::get_count(const std::string &_name) const
       } catch(...) {
               return 0;
       }
+}
+
+void KXMLDoc::debug() {
+	std::istringstream s_stream(to_string());
+	for (std::string line; std::getline(s_stream, line); ) {
+		KAMOFLAGE_DEBUG("kamo_xml::debug() : %s\n", line.c_str());
+	}
 }
 
 KXMLDoc KXMLDoc::operator[](const std::string &_name) const
