@@ -559,7 +559,7 @@ namespace KammoGUI {
 			void add_svg_child(const std::string &svg_chunk);
 			ElementReference add_element_clone(const std::string &new_id, const ElementReference &element_to_clone);
 
-			void get_viewport(SVGRect &rect);
+			void get_viewport(SVGRect &rect) const;
 			void get_boundingbox(SVGRect &rect); // return bounding box in canvas coordinates
 
 			void drop_element();
@@ -595,7 +595,13 @@ namespace KammoGUI {
 
 			void get_canvas_size(int &width_in_pixels, int &height_in_pixels);
 			void get_canvas_size_inches(float &width_in_inches, float &height_in_inches);
-		public:
+
+			// calculate a scaling factor to fit element into a specific
+			// size defined by "inches_wide" and "inches_tall"
+			double fit_to_inches(const SVGCanvas::ElementReference *element,
+					     double inches_wide, double inches_tall);
+
+	public:
 
 			SVGCanvas *get_parent();
 

@@ -605,7 +605,7 @@ KammoGUI::SVGCanvas::ElementReference KammoGUI::SVGCanvas::ElementReference::add
 	return KammoGUI::SVGCanvas::ElementReference(&element_to_clone, new_id);
 }
 
-void KammoGUI::SVGCanvas::ElementReference::get_viewport(SVGRect &rect) {
+void KammoGUI::SVGCanvas::ElementReference::get_viewport(SVGRect &rect) const {
 	_svg_element_get_viewport(element,
 				  &rect.x,
 				  &rect.y,
@@ -682,6 +682,46 @@ void KammoGUI::SVGCanvas::SVGDocument::get_canvas_size_inches(float &width_in_in
 	width_in_inches = parent->__width_inches;
 	height_in_inches = parent->__height_inches;
 }
+
+static inline double __fit_to_inches(double width_inches, double height_inches,
+				     double width_pixels, double height_pixels,
+				     double fit_width_inches, double fit_height_inches,
+				     double source_width_pixels, double source_height_pixels) {
+	// calculate the size of a finger in pixels
+	double pxl_per_inch_w = width_pixels / width_inches;
+	double pxl_per_inch_h = height_pixels / height_inches;
+
+	// force scaling to fit into 5 by 7 "fingers"
+	if(width_inches > fit_width_inches) width_inches = fit_width_inches;
+	if(height_inches > fit_height_inches) height_inches = fit_height_inches;
+
+	// calculate scaling factor
+	double target_w = (double)width_inches  * pxl_per_inch_w;
+	double target_h = (double)height_inches  * pxl_per_inch_h;
+
+	double scale_w = target_w / (double)source_width_pixels;
+	double scale_h = target_h / (double)source_height_pixels;
+
+	return scale_w < scale_h ? scale_w : scale_h;
+}
+
+double KammoGUI::SVGCanvas::SVGDocument::fit_to_inches(const SVGCanvas::ElementReference *element,
+						       double inches_wide, double inches_tall) {
+	int canvas_w, canvas_h;
+	float canvas_w_inches, canvas_h_inches;
+	KammoGUI::SVGCanvas::SVGRect document_size;
+
+	element->get_viewport(document_size);
+	get_canvas_size(canvas_w, canvas_h);
+	get_canvas_size_inches(canvas_w_inches, canvas_h_inches);
+
+	return __fit_to_inches(
+		(double)canvas_w_inches, (double)canvas_h_inches,
+		(double)canvas_w, (double)canvas_h,
+		inches_wide, inches_tall,
+		document_size.width, document_size.height);
+}
+
 
 KammoGUI::SVGCanvas* KammoGUI::SVGCanvas::SVGDocument::get_parent() {
 	return parent;
