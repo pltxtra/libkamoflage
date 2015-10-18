@@ -691,7 +691,7 @@ static inline double __fit_to_inches(double width_inches, double height_inches,
 	double pxl_per_inch_w = width_pixels / width_inches;
 	double pxl_per_inch_h = height_pixels / height_inches;
 
-	// force scaling to fit into 5 by 7 "fingers"
+	// force scaling to fit into predefined "fingers"-area
 	if(width_inches > fit_width_inches) width_inches = fit_width_inches;
 	if(height_inches > fit_height_inches) height_inches = fit_height_inches;
 
@@ -714,6 +714,16 @@ double KammoGUI::SVGCanvas::SVGDocument::fit_to_inches(const SVGCanvas::ElementR
 	element->get_viewport(document_size);
 	get_canvas_size(canvas_w, canvas_h);
 	get_canvas_size_inches(canvas_w_inches, canvas_h_inches);
+
+	KAMOFLAGE_DEBUG("canvas(pxls):    %d, %d\n", canvas_w, canvas_h);
+	KAMOFLAGE_DEBUG("canvas(inch):    %f, %f\n",
+			canvas_w_inches, canvas_h_inches);
+	KAMOFLAGE_DEBUG("docume(pxls)     %f, %f\n",
+			document_size.width,
+			document_size.height);
+	KAMOFLAGE_DEBUG("fit ar(pxls)     %f, %f\n",
+			inches_wide,
+			inches_tall);
 
 	return __fit_to_inches(
 		(double)canvas_w_inches, (double)canvas_h_inches,
