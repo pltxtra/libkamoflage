@@ -26,12 +26,19 @@
 
 #include <string>
 #include <exception>
+#include <atomic>
+#include <mutex>
 
 #ifndef __JEXCEPTION
 #define __JEXCEPTION
 
 class jException : std::exception {
+private:
+	static std::mutex mutex;
+	static std::atomic_bool callback_enabled;
+	static std::function<void(const std::string& backtrace)> backtrace_callback;
 public:
+
 	enum Type {
 		io_error = 0,
 		null_pointer = 1,
@@ -50,6 +57,11 @@ public:
 	virtual ~jException();
 
 	virtual const char* what() const noexcept;
+
+	static void dump_backtrace(std::ostream& os, size_t max_depth);
+	static void enable_backtrace_callback(
+		std::function<void(const std::string& stacktrace)> callback);
+
 };
 
 #define THROW_EXCEPTION(a,b) throw new jException(a,YExcpetion::b)
