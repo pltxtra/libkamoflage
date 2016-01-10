@@ -24,6 +24,7 @@
 #include <iostream>
 #include <map>
 #include <vector>
+#include <cxxabi.h>
 
 #include <algorithm>
 
@@ -1740,29 +1741,38 @@ void KammoGUI__run_on_GUI_thread_JNI_CALLBACK() {
 
 	kammogui_ui_thread = gettid();
 
-	while((gtj = ((GuiThreadJob *)on_ui_thread_queue->poll_for_event())) != NULL) {
+	try {
+		while((gtj = ((GuiThreadJob *)on_ui_thread_queue->poll_for_event())) != NULL) {
 
-		// call the function
-		if(gtj) {
-			KAMOFLAGE_DEBUG("gtj to process: %p\n", gtj);
-			if(gtj->gui_thread_function)
-				gtj->gui_thread_function(gtj->data);
-			else
-				gtj->func();
+			// call the function
+			if(gtj) {
+				KAMOFLAGE_DEBUG("gtj to process: %p\n", gtj);
+				if(gtj->gui_thread_function)
+					gtj->gui_thread_function(gtj->data);
+				else
+					gtj->func();
 
-			// push us back, the other direction...
-			if(gtj->do_synch) {
-				KAMOFLAGE_DEBUG_("run on gui - synch, will trigger.\n");
-				gtj->synch_queue.push_event(gtj);
-				KAMOFLAGE_DEBUG_("run on gui - synch, triggered.\n");
-			} else {
+				// push us back, the other direction...
+				if(gtj->do_synch) {
+					KAMOFLAGE_DEBUG_("run on gui - synch, will trigger.\n");
+					gtj->synch_queue.push_event(gtj);
+					KAMOFLAGE_DEBUG_("run on gui - synch, triggered.\n");
+				} else {
 //			KAMOFLAGE_DEBUG_("run on gui - non synch, will delete gtj.\n");
-				delete gtj;
+					delete gtj;
 //			KAMOFLAGE_DEBUG_("run on gui - non synch, deleted.\n");
+				}
+			} else {
+				KAMOFLAGE_DEBUG_("wow, run on gui got a null object.\n");
 			}
-		} else {
-			KAMOFLAGE_DEBUG_("wow, run on gui got a null object.\n");
 		}
+	} catch(...) {
+		int status = 0;
+		char * buff = __cxxabiv1::__cxa_demangle(
+			__cxxabiv1::__cxa_current_exception_type()->name(),
+			NULL, NULL, &status);
+		KAMOFLAGE_ERROR("KammoGUI__run_on_GUI_thread_JNI_CALLBACK() caught an unknown exception: %s\n", buff);
+		throw;
 	}
 }
 
