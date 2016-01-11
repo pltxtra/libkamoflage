@@ -87,6 +87,13 @@ void jException::dump_backtrace(std::ostream& os, size_t max_depth) {
 	}
 }
 
+std::string jException::dump_backtrace(size_t max_depth) {
+	std::ostringstream oss;
+	dump_backtrace(oss, 30);
+
+	return oss.str();
+}
+
 void jException::enable_backtrace_callback(
 	std::function<void(const std::string& backtrace)> callback) {
 	std::lock_guard<std::mutex> lock_guard(mutex);

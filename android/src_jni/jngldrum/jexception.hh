@@ -59,6 +59,7 @@ public:
 	virtual const char* what() const noexcept;
 
 	static void dump_backtrace(std::ostream& os, size_t max_depth);
+	static std::string dump_backtrace(size_t max_depth);
 	static void enable_backtrace_callback(
 		std::function<void(const std::string& stacktrace)> callback);
 
