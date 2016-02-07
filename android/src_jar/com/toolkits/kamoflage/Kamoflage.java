@@ -57,6 +57,8 @@ public class Kamoflage
 	public static float get_h_ppi() { return h_ppi; }
 
 	public Kamoflage(android.app.Activity cntxt, int listrow_rid, int listlayout_rid) {
+		com.toolkits.libsvgandroid.Filter.setActivity(cntxt);
+
 		kamoflage_context = cntxt;
 		listrow_resource_id = listrow_rid;
 		listlayout_resource_id = listlayout_rid;
