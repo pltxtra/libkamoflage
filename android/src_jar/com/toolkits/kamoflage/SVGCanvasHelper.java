@@ -45,13 +45,13 @@ import android.view.GestureDetector;
 
 class SVGCanvasHelper extends View{
 	private String id;
-		
+
 	private int width, height;
 	private int x, y;
 	private long nativeID;
-	
+
 	private android.app.Activity context = null;
-	
+
 	private static boolean didNotCheckHWAcc = true;
 	private static boolean gfxIsHwAcc = false;
 	private boolean isThisHWAcc() {
@@ -62,7 +62,7 @@ class SVGCanvasHelper extends View{
 			didNotCheckHWAcc = false;
 			try {
 				Class<?> cls = this.getClass();
-				
+
 				java.lang.reflect.Method isHardwareAcc = cls.getMethod("isHardwareAccelerated");
 				Object result = isHardwareAcc.invoke(this);
 				Log.v("KAMOFLAGE", "isHwAcc? " + result);
@@ -83,7 +83,7 @@ class SVGCanvasHelper extends View{
 		}
 		return gfxIsHwAcc;
 	}
-	
+
 	public SVGCanvasHelper(
 		long _nativeID,
 		String parent_id,
@@ -92,7 +92,7 @@ class SVGCanvasHelper extends View{
 
 		nativeID = _nativeID;
 		id = parent_id;
-		context = ctx;		
+		context = ctx;
 	}
 
 	@Override
@@ -103,14 +103,14 @@ class SVGCanvasHelper extends View{
 					   evt.getPointerCount(), evt.getActionIndex(), evt.getRawX(), evt.getRawY());
 
 //		Log.v("KAMOFLAGE", "action index: " + evt.getActionIndex() + " (pointer id: " + evt.getPointerId() + ")");
-		
+
 		int k;
 		for(k = 0; k < evt.getPointerCount(); k++) {
 			canvasMotionEventInitPointer(nativeID, k, evt.getPointerId(k), evt.getX(k), evt.getY(k),
 						     evt.getPressure(k));
 		}
-		canvasMotionEvent(nativeID);		
-			
+		canvasMotionEvent(nativeID);
+
 		return true;
 	}
 
@@ -126,7 +126,7 @@ class SVGCanvasHelper extends View{
 		}
 		return wanting;
 	}
-	
+
 	@Override
 	protected void onMeasure (int widthMeasureSpec, int heightMeasureSpec) {
 		int sw, sh;
@@ -141,9 +141,9 @@ class SVGCanvasHelper extends View{
 		sw = measureSize((int)w_inch, widthMeasureSpec);
 		sh = measureSize((int)h_inch, heightMeasureSpec);
 
-		setMeasuredDimension(sw, sh);	
+		setMeasuredDimension(sw, sh);
 	}
-	
+
 	public native static void canvasExpose(long nativeID, Canvas target);
 	public native static void canvasResize(long nativeID, int w, int h, float w_inches, float h_inches);
 	public native static float canvasMeasureInches(long nativeID, boolean measureWidth);
@@ -158,7 +158,7 @@ class SVGCanvasHelper extends View{
 	protected void onLayout (boolean changed, int left, int top, int right, int bottom) {
 		width = right - left;
 		height = bottom - top;
-		
+
 		int[] spos = new int[2];
 		getLocationOnScreen(spos);
 		abs_x = (float)spos[0];
@@ -166,10 +166,10 @@ class SVGCanvasHelper extends View{
 
 		// calculate size in inches
 		float width_f = (float)width;
-		float height_f = (float)height;	       
+		float height_f = (float)height;
 		width_f = width_f / Kamoflage.get_w_ppi();
 		height_f = height_f / Kamoflage.get_h_ppi();
-		
+
 		canvasResize(nativeID, width, height, width_f, height_f);
 	}
 
@@ -181,7 +181,7 @@ class SVGCanvasHelper extends View{
 		Matrix mtrx_base = canvas.getMatrix();
 		mtrx_base.getValues(vls);
 		SvgRaster.setCurrentScreenCanvas(canvas, vls[2], vls[5]);
-		
+
 		canvasExpose(nativeID, canvas);
 
 		if(do_animate) invalidate();
@@ -196,4 +196,3 @@ class SVGCanvasHelper extends View{
 		do_animate = false;
 	}
 }
-	
