@@ -22,6 +22,11 @@ LOCAL_SRC_FILES := ../libsvgandroid/export/armeabi/libsvgandroid.so
 include $(PREBUILT_SHARED_LIBRARY)
 
 include $(CLEAR_VARS)
+LOCAL_MODULE := libgnuVG
+LOCAL_SRC_FILES := ../gnuVGdroid_tiger/prereqs/lib/libgnuVG.so
+include $(PREBUILT_SHARED_LIBRARY)
+
+include $(CLEAR_VARS)
 
 LOCAL_CPP_EXTENSION := .cc
 
@@ -33,6 +38,7 @@ LOCAL_CFLAGS += \
 -I../libsvgandroid/src_jni/ \
 -I../libsvgandroid/src_jni/libsvg \
 -I../libsvgandroid/prereqs/include/ \
+-I../gnuVGdroid_tiger/prereqs/include/gnuVG \
 -Wall
 
 LOCAL_CPPFLAGS += -std=c++11
@@ -41,6 +47,7 @@ LOCAL_CPPFLAGS += -std=c++11
 LIBKAMOFLAGE_SOURCES = \
 libkamoflage/kamogui.cc libkamoflage/kamogui.hh \
 libkamoflage/kamogui_svg_canvas.cc \
+libkamoflage/gnuVGcanvas.cc \
 libkamoflage/kamogui_sensorevent.cc \
 libkamoflage/kamo_xml.cc libkamoflage/kamo_xml.hh \
 libkamoflage/kamogui_scale_detector.cc libkamoflage/kamogui_scale_detector.hh \
@@ -53,8 +60,8 @@ jngldrum/jthread.cc jngldrum/jthread.hh \
 jngldrum/jinformer.cc jngldrum/jinformer.hh
 
 # kamoflage demo app
-LOCAL_LDLIBS += -ldl -llog
-LOCAL_SHARED_LIBRARIES := libsvgandroid
+LOCAL_LDLIBS += -ldl -llog -lGLESv2
+LOCAL_SHARED_LIBRARIES := libsvgandroid libgnuVG
 LOCAL_SRC_FILES := $(LIBKAMOFLAGE_SOURCES) $(JNGLDRUM_SOURCES)
 
 include $(BUILD_SHARED_LIBRARY)

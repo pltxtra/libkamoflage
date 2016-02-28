@@ -2235,6 +2235,7 @@ extern "C" {
 	Kamoflage_addWIDGET(Java_com_toolkits_kamoflage_Kamoflage_addButton,Button);
 	Kamoflage_addWIDGET(Java_com_toolkits_kamoflage_Kamoflage_addCanvas,Canvas);
 	Kamoflage_addWIDGET(Java_com_toolkits_kamoflage_Kamoflage_addSVGCanvas,SVGCanvas);
+	Kamoflage_addWIDGET(Java_com_toolkits_kamoflage_Kamoflage_addGnuVGCanvas,GnuVGCanvas);
 	Kamoflage_addWIDGET(Java_com_toolkits_kamoflage_Kamoflage_addSurface,Surface);
 	Kamoflage_addWIDGET(Java_com_toolkits_kamoflage_Kamoflage_addList,List);
 	Kamoflage_addWIDGET(Java_com_toolkits_kamoflage_Kamoflage_addEntry,Entry);

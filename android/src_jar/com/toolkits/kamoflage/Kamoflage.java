@@ -1072,6 +1072,20 @@ public class Kamoflage
 		}
 	}
 
+	static class gnuVGCanvas extends Widget {
+
+		public gnuVGCanvas() {
+		}
+
+		protected void create_internal_object() {
+			internal = new gnuVGView(nativeID, id, kamoflage_context);
+		}
+
+		public void parse_gnuvg_canvas(Element canvas) {
+			initiate_internal();
+		}
+	}
+
 	static class CheckButton extends Widget implements View.OnClickListener {
 
 		CheckButton() {
@@ -1469,6 +1483,7 @@ public class Kamoflage
 	public native static long addButton(String id, Object wid);
 	public native static long addCanvas(String id, Object wid);
 	public native static long addSVGCanvas(String id, Object wid);
+	public native static long addGnuVGCanvas(String id, Object wid);
 	public native static long addList(String id, Object wid);
 	public native static long addEntry(String id, Object wid);
 	public native static long addScale(String id, Object wid);
@@ -1528,6 +1543,15 @@ public class Kamoflage
 			cnv.parse_widget(canvas);
 			cnv.setNativeID(Kamoflage.addSVGCanvas(cnv.get_id(), cnv));
 			cnv.parse_svg_canvas(canvas);
+			return cnv;
+		}
+
+		private static Kamoflage.Widget parse_gnuvg_canvas(Element canvas) {
+			Kamoflage.gnuVGCanvas cnv = new Kamoflage.gnuVGCanvas();
+			Log.v("Kamoflage", "gnuVGcanvas created.");
+			cnv.parse_widget(canvas);
+			cnv.setNativeID(Kamoflage.addGnuVGCanvas(cnv.get_id(), cnv));
+			cnv.parse_gnuvg_canvas(canvas);
 			return cnv;
 		}
 
@@ -1647,6 +1671,10 @@ public class Kamoflage
 				}
 				if(n.getNodeName().equals("svgcanvas")) {
 					w = parse_svg_canvas((Element)n);
+				}
+				if(n.getNodeName().equals("gnuvgcanvas")) {
+					Log.v("Kamoflage", "Parsing gnuvgcanvas");
+					w = parse_gnuvg_canvas((Element)n);
 				}
 				if(n.getNodeName().equals("list")) {
 					w = parse_list((Element)n);
