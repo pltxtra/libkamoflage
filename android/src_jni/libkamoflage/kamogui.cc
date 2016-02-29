@@ -36,6 +36,8 @@
 #include <math.h>
 
 #include "kamogui.hh"
+#include "gnuVGcanvas.hh"
+
 #include "jngldrum/jthread.hh"
 #include "jngldrum/jinformer.hh"
 

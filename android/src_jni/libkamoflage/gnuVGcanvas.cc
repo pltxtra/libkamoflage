@@ -34,6 +34,7 @@
 #include <unistd.h>
 
 #include "kamogui.hh"
+#include "gnuVGcanvas.hh"
 #include "libsvg/svgint.h"
 
 #define __DO_KAMOFLAGE_DEBUG
