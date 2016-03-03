@@ -42,10 +42,17 @@
 
 namespace KammoGUI {
 
-	/*************************************** */
+/********************************************************
+ *
+ *           gnuVGcanvas::SVGDocument
+ *
+ ********************************************************/
+
 	GnuVGCanvas::SVGDocument::SVGDocument(GnuVGCanvas* _parent)
 		: parent(_parent)
 	{
+		gnuVG_use_context(parent->gnuVGctx);
+
 		stack_push(); // push initial state
 
 		stroke = vgCreatePaint();
@@ -55,16 +62,86 @@ namespace KammoGUI {
 		temporary_path = vgCreatePath(VG_PATH_FORMAT_STANDARD, VG_PATH_DATATYPE_F,
 					      1,0,0,0, VG_PATH_CAPABILITY_ALL);
 
+		// link parent to us
+		parent->documents.push_back(this);
+
+		// load the svg
+		if(svg_create (&(svg))) {
+			throw jException("Failed to allocate internal SVG structure",
+					 jException::sanity_error);
+		}
+
+		// initialize engine
+
+		/* hierarchy */
+		svg_render_engine.begin_group = begin_group;
+		svg_render_engine.begin_element = begin_element;
+		svg_render_engine.end_element = end_element;
+		svg_render_engine.end_group = end_group;
+		/* path creation */
+		svg_render_engine.move_to = move_to;
+		svg_render_engine.line_to = line_to;
+		svg_render_engine.curve_to = curve_to;
+		svg_render_engine.quadratic_curve_to = quadratic_curve_to;
+		svg_render_engine.arc_to = arc_to;
+		svg_render_engine.close_path = close_path;
+		svg_render_engine.free_path_cache = free_path_cache;
+		/* style */
+		svg_render_engine.set_color = set_color;
+		svg_render_engine.set_fill_opacity = set_fill_opacity;
+		svg_render_engine.set_fill_paint = set_fill_paint;
+		svg_render_engine.set_fill_rule = set_fill_rule;
+		svg_render_engine.set_font_family = set_font_family;
+		svg_render_engine.set_font_size = set_font_size;
+		svg_render_engine.set_font_style = set_font_style;
+		svg_render_engine.set_font_weight = set_font_weight;
+		svg_render_engine.set_opacity = set_opacity;
+		svg_render_engine.set_stroke_dash_array = set_stroke_dash_array;
+		svg_render_engine.set_stroke_dash_offset = set_stroke_dash_offset;
+		svg_render_engine.set_stroke_line_cap = set_stroke_line_cap;
+		svg_render_engine.set_stroke_line_join = set_stroke_line_join;
+		svg_render_engine.set_stroke_miter_limit = set_stroke_miter_limit;
+		svg_render_engine.set_stroke_opacity = set_stroke_opacity;
+		svg_render_engine.set_stroke_paint = set_stroke_paint;
+		svg_render_engine.set_stroke_width = set_stroke_width;
+		svg_render_engine.set_text_anchor = set_text_anchor;
+		svg_render_engine.set_filter = set_filter;
+		/* filter */
+		svg_render_engine.begin_filter = begin_filter;
+		svg_render_engine.add_filter_feBlend = add_filter_feBlend;
+		svg_render_engine.add_filter_feComposite = add_filter_feComposite;
+		svg_render_engine.add_filter_feFlood = add_filter_feFlood;
+		svg_render_engine.add_filter_feGaussianBlur = add_filter_feGaussianBlur;
+		svg_render_engine.add_filter_feOffset = add_filter_feOffset;
+		/* transform */
+		svg_render_engine.apply_clip_box = apply_clip_box;
+		svg_render_engine.transform = transform;
+		svg_render_engine.apply_view_box = apply_view_box;
+		svg_render_engine.set_viewport_dimension = set_viewport_dimension;
+
+		/* drawing */
+		svg_render_engine.render_line = render_line;
+		svg_render_engine.render_path = render_path;
+		svg_render_engine.render_ellipse = render_ellipse;
+		svg_render_engine.render_rect = render_rect;
+		svg_render_engine.render_text = render_text;
+		svg_render_engine.render_image = render_image;
+
+		/* get bounding box of last drawing, in pixels */
+		svg_render_engine.get_last_bounding_box = get_last_bounding_box;
 	}
 
 	GnuVGCanvas::SVGDocument::SVGDocument(const std::string& fname, GnuVGCanvas* _parent)
 		: SVGDocument(_parent)
 	{
+		(void) svg_parse(svg, fname.c_str());
 	}
 
 	GnuVGCanvas::SVGDocument::SVGDocument(GnuVGCanvas* _parent, const std::string& xml)
 		: SVGDocument(_parent)
 	{
+		const char *bfr = xml.c_str();
+		(void) svg_parse_buffer(svg, bfr, strlen(bfr));
 	}
 
 	GnuVGCanvas::SVGDocument::~SVGDocument() {}
@@ -74,6 +151,10 @@ namespace KammoGUI {
 	}
 
 	void GnuVGCanvas::SVGDocument::on_resize() {
+	}
+
+	void GnuVGCanvas::SVGDocument::render() {
+		(void) svg_render(svg, &svg_render_engine, this);
 	}
 
 /********************************************************
@@ -266,7 +347,8 @@ namespace KammoGUI {
 		vgSetParameterfv(fill, VG_PAINT_COLOR, 4, state->fill_rgba);
 
 		vgSeti(VG_MATRIX_MODE, VG_MATRIX_PATH_USER_TO_SURFACE);
-		vgLoadMatrix(state->matrix);
+		parent->loadFundamentalMatrix();
+		vgMultMatrix(state->matrix);
 
 		if(state->dash.size() > 0) {
 			vgSetfv(VG_STROKE_DASH_PATTERN, state->dash.size(), state->dash.data());
@@ -365,9 +447,9 @@ namespace KammoGUI {
 	}
 
 	svg_status_t GnuVGCanvas::SVGDocument::curve_to(void* closure,
-					   double x1, double y1,
-					   double x2, double y2,
-					   double x3, double y3) {
+							double x1, double y1,
+							double x2, double y2,
+							double x3, double y3) {
 		GnuVGCanvas::SVGDocument* context = (GnuVGCanvas::SVGDocument*)closure;
 
 		context->state->pathSeg.push_back(VG_CUBIC_TO);
@@ -382,8 +464,8 @@ namespace KammoGUI {
 	}
 
 	svg_status_t GnuVGCanvas::SVGDocument::quadratic_curve_to(void* closure,
-						     double x1, double y1,
-						     double x2, double y2) {
+								  double x1, double y1,
+								  double x2, double y2) {
 		GnuVGCanvas::SVGDocument* context = (GnuVGCanvas::SVGDocument*)closure;
 
 		context->state->pathSeg.push_back(VG_QUAD_TO);
@@ -396,13 +478,13 @@ namespace KammoGUI {
 	}
 
 	svg_status_t GnuVGCanvas::SVGDocument::arc_to(void* closure,
-					 double	rx,
-					 double	ry,
-					 double	x_axis_rotation,
-					 int	large_arc_flag,
-					 int	sweep_flag,
-					 double	x,
-					 double	y) {
+						      double	rx,
+						      double	ry,
+						      double	x_axis_rotation,
+						      int	large_arc_flag,
+						      int	sweep_flag,
+						      double	x,
+						      double	y) {
 		GnuVGCanvas::SVGDocument* context = (GnuVGCanvas::SVGDocument*)closure;
 
 		VGubyte arc_type;
@@ -601,62 +683,62 @@ namespace KammoGUI {
 	}
 
 	svg_status_t GnuVGCanvas::SVGDocument::add_filter_feBlend(void* closure,
-						     svg_length_t* x, svg_length_t* y,
-						     svg_length_t* width, svg_length_t* height,
-						     svg_filter_in_t in, int in_op_reference,
-						     svg_filter_in_t in2, int in2_op_reference,
-						     feBlendMode_t mode) {
+								  svg_length_t* x, svg_length_t* y,
+								  svg_length_t* width, svg_length_t* height,
+								  svg_filter_in_t in, int in_op_reference,
+								  svg_filter_in_t in2, int in2_op_reference,
+								  feBlendMode_t mode) {
 		return SVG_STATUS_SUCCESS;
 	}
 
 	svg_status_t GnuVGCanvas::SVGDocument::add_filter_feComposite(void* closure,
-							 svg_length_t* x, svg_length_t* y,
-							 svg_length_t* width, svg_length_t* height,
-							 feCompositeOperator_t oprt,
-							 svg_filter_in_t in, int in_op_reference,
-							 svg_filter_in_t in2, int in2_op_reference,
-							 double k1, double k2, double k3, double k4) {
+								      svg_length_t* x, svg_length_t* y,
+								      svg_length_t* width, svg_length_t* height,
+								      feCompositeOperator_t oprt,
+								      svg_filter_in_t in, int in_op_reference,
+								      svg_filter_in_t in2, int in2_op_reference,
+								      double k1, double k2, double k3, double k4) {
 		return SVG_STATUS_SUCCESS;
 	}
 
 	svg_status_t GnuVGCanvas::SVGDocument::add_filter_feFlood(void* closure,
-						     svg_length_t* x, svg_length_t* y,
-						     svg_length_t* width, svg_length_t* height,
-						     svg_filter_in_t in, int in_op_reference,
-						     const svg_color_t* color, double opacity) {
+								  svg_length_t* x, svg_length_t* y,
+								  svg_length_t* width, svg_length_t* height,
+								  svg_filter_in_t in, int in_op_reference,
+								  const svg_color_t* color, double opacity) {
 		return SVG_STATUS_SUCCESS;
 	}
 
 	svg_status_t GnuVGCanvas::SVGDocument::add_filter_feGaussianBlur(void* closure,
-							    svg_length_t* x, svg_length_t* y,
-							    svg_length_t* width, svg_length_t* height,
-							    svg_filter_in_t in, int in_op_reference,
-							    double std_dev_x, double std_dev_y) {
+									 svg_length_t* x, svg_length_t* y,
+									 svg_length_t* width, svg_length_t* height,
+									 svg_filter_in_t in, int in_op_reference,
+									 double std_dev_x, double std_dev_y) {
 		return SVG_STATUS_SUCCESS;
 	}
 
 	svg_status_t GnuVGCanvas::SVGDocument::add_filter_feOffset(void* closure,
-						      svg_length_t* x, svg_length_t* y,
-						      svg_length_t* width, svg_length_t* height,
-						      svg_filter_in_t in, int in_op_reference,
-						      double dx, double dy) {
+								   svg_length_t* x, svg_length_t* y,
+								   svg_length_t* width, svg_length_t* height,
+								   svg_filter_in_t in, int in_op_reference,
+								   double dx, double dy) {
 		return SVG_STATUS_SUCCESS;
 	}
 
 
 /* transform */
 	svg_status_t GnuVGCanvas::SVGDocument::apply_clip_box(void* closure,
-						 svg_length_t *x,
-						 svg_length_t *y,
-						 svg_length_t *width,
-						 svg_length_t *height) {
+							      svg_length_t *x,
+							      svg_length_t *y,
+							      svg_length_t *width,
+							      svg_length_t *height) {
 		return SVG_STATUS_SUCCESS;
 	}
 
 	svg_status_t GnuVGCanvas::SVGDocument::transform(void* closure,
-					    double xx, double yx,
-					    double xy, double yy,
-					    double x0, double y0) {
+							 double xx, double yx,
+							 double xy, double yy,
+							 double x0, double y0) {
 		GnuVGCanvas::SVGDocument* context = (GnuVGCanvas::SVGDocument*)closure;
 
 		VGfloat matrix[9] = {
@@ -673,15 +755,15 @@ namespace KammoGUI {
 	}
 
 	svg_status_t GnuVGCanvas::SVGDocument::apply_view_box(void* closure,
-						 svg_view_box_t view_box,
-						 svg_length_t *width,
-						 svg_length_t *height) {
+							      svg_view_box_t view_box,
+							      svg_length_t *width,
+							      svg_length_t *height) {
 		return SVG_STATUS_SUCCESS;
 	}
 
 	svg_status_t GnuVGCanvas::SVGDocument::set_viewport_dimension(void* closure,
-							 svg_length_t *width,
-							 svg_length_t *height) {
+								      svg_length_t *width,
+								      svg_length_t *height) {
 		GnuVGCanvas::SVGDocument* context = (GnuVGCanvas::SVGDocument*)closure;
 		context->length_to_pixel(width, &(context->state->viewport_width));
 		context->length_to_pixel(height, &(context->state->viewport_height));
@@ -690,10 +772,10 @@ namespace KammoGUI {
 
 /* drawing */
 	svg_status_t GnuVGCanvas::SVGDocument::render_line(void* closure,
-					      svg_length_t *x1,
-					      svg_length_t *y1,
-					      svg_length_t *x2,
-					      svg_length_t *y2) {
+							   svg_length_t *x1,
+							   svg_length_t *y1,
+							   svg_length_t *x2,
+							   svg_length_t *y2) {
 		GnuVGCanvas::SVGDocument* context = (GnuVGCanvas::SVGDocument*)closure;
 		context->use_state_on_top();
 
@@ -726,10 +808,10 @@ namespace KammoGUI {
 	}
 
 	svg_status_t GnuVGCanvas::SVGDocument::render_ellipse(void* closure,
-						 svg_length_t *cx,
-						 svg_length_t *cy,
-						 svg_length_t *rx,
-						 svg_length_t *ry) {
+							      svg_length_t *cx,
+							      svg_length_t *cy,
+							      svg_length_t *rx,
+							      svg_length_t *ry) {
 		GnuVGCanvas::SVGDocument* context = (GnuVGCanvas::SVGDocument*)closure;
 		context->use_state_on_top();
 
@@ -737,19 +819,19 @@ namespace KammoGUI {
 	}
 
 	svg_status_t GnuVGCanvas::SVGDocument::render_rect(void* closure,
-					      svg_length_t *x,
-					      svg_length_t *y,
-					      svg_length_t *width,
-					      svg_length_t *height,
-					      svg_length_t *rx,
-					      svg_length_t *ry) {
+							   svg_length_t *x,
+							   svg_length_t *y,
+							   svg_length_t *width,
+							   svg_length_t *height,
+							   svg_length_t *rx,
+							   svg_length_t *ry) {
 		GnuVGCanvas::SVGDocument* context = (GnuVGCanvas::SVGDocument*)closure;
 		context->use_state_on_top();
 
 		VGubyte cmds[] = {VG_MOVE_TO_ABS,
-				  VG_LINE_TO,
-				  VG_LINE_TO,
-				  VG_LINE_TO,
+				  VG_LINE_TO_REL,
+				  VG_LINE_TO_REL,
+				  VG_LINE_TO_REL,
 				  VG_CLOSE_PATH
 		};
 
@@ -766,6 +848,9 @@ namespace KammoGUI {
 			-_w, 0.0
 		};
 
+		KAMOFLAGE_ERROR("::render_rect(%f, %f, %f, %f) - (%d)\n",
+				_x, _y, _w, _h, context->state->paint_modes);
+
 		vgClearPath(context->temporary_path, VG_PATH_CAPABILITY_ALL);
 		vgAppendPathData(context->temporary_path, 5, cmds, data);
 		vgDrawPath(context->temporary_path, context->state->paint_modes);
@@ -774,9 +859,9 @@ namespace KammoGUI {
 	}
 
 	svg_status_t GnuVGCanvas::SVGDocument::render_text(void* closure,
-					      svg_length_t *x,
-					      svg_length_t *y,
-					      const char   *utf8) {
+							   svg_length_t *x,
+							   svg_length_t *y,
+							   const char   *utf8) {
 		GnuVGCanvas::SVGDocument* context = (GnuVGCanvas::SVGDocument*)closure;
 		context->use_state_on_top();
 
@@ -784,13 +869,13 @@ namespace KammoGUI {
 	}
 
 	svg_status_t GnuVGCanvas::SVGDocument::render_image(void* closure,
-					       unsigned char *data,
-					       unsigned int	 data_width,
-					       unsigned int	 data_height,
-					       svg_length_t	 *x,
-					       svg_length_t	 *y,
-					       svg_length_t	 *width,
-					       svg_length_t	 *height) {
+							    unsigned char *data,
+							    unsigned int	 data_width,
+							    unsigned int	 data_height,
+							    svg_length_t	 *x,
+							    svg_length_t	 *y,
+							    svg_length_t	 *width,
+							    svg_length_t	 *height) {
 		GnuVGCanvas::SVGDocument* context = (GnuVGCanvas::SVGDocument*)closure;
 		context->use_state_on_top();
 
@@ -849,6 +934,12 @@ namespace KammoGUI {
 		gnuVG_resize(width, height);
 		window_width = width;
 		window_height = height;
+
+		vgLoadIdentity();
+		vgTranslate(0.0f, window_height);
+		vgScale(1.0, -1.0);
+		vgGetMatrix(fundamentalMatrix);
+		vgLoadIdentity();
 	}
 
 	void GnuVGCanvas::step(JNIEnv *env) {
@@ -857,6 +948,10 @@ namespace KammoGUI {
 		VGfloat clearColor[] = {1,1,1,1};
 		vgSetfv(VG_CLEAR_COLOR, 4, clearColor);
 		vgClear(0, 0, window_width, window_height);
+
+		for(auto document : documents) {
+			document->render();
+		}
 	}
 
 };

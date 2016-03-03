@@ -30,6 +30,7 @@ namespace KammoGUI {
 		class SVGDocument {
 		private:
 			GnuVGCanvas *parent;
+			svg_t *svg;
 			std::string file_name;
 
 			struct State {
@@ -198,6 +199,8 @@ namespace KammoGUI {
 			static int get_last_bounding_box(void *closure, svg_bounding_box_t *bbox);
 
 
+			svg_render_engine_t svg_render_engine;
+
 			SVGDocument(GnuVGCanvas* parent);
 
 		protected:
@@ -205,6 +208,7 @@ namespace KammoGUI {
 			SVGDocument(GnuVGCanvas* parent, const std::string& xml);
 
 		public:
+			void render();
 			GnuVGCanvas* get_parent();
 
 			virtual ~SVGDocument();
@@ -214,10 +218,16 @@ namespace KammoGUI {
 		};
 
 	private:
+		std::vector<SVGDocument *> documents;
 		VGint window_width, window_height;
 		VGHandle gnuVGctx = VG_INVALID_HANDLE;
+		VGfloat fundamentalMatrix[9];
 
 	public:
+		void loadFundamentalMatrix() {
+			vgLoadMatrix(fundamentalMatrix);
+		}
+
 		class GnuVGStateStackEmpty : public jException {
 		public:
 			GnuVGStateStackEmpty(const std::string &id) : jException(id, jException::sanity_error) {}
