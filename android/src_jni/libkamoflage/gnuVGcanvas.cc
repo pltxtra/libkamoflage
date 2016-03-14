@@ -27,6 +27,7 @@
 
 #include <VG/openvg.h>
 #include <VG/vgext.h>
+#include <VG/vgu.h>
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -488,6 +489,7 @@ namespace KammoGUI {
 		GnuVGCanvas::SVGDocument* context = (GnuVGCanvas::SVGDocument*)closure;
 
 		VGubyte arc_type;
+		sweep_flag = !sweep_flag;
 		if(large_arc_flag) {
 			arc_type = sweep_flag ? VG_LCWARC_TO : VG_LCCWARC_TO;
 		} else {
@@ -742,9 +744,9 @@ namespace KammoGUI {
 		GnuVGCanvas::SVGDocument* context = (GnuVGCanvas::SVGDocument*)closure;
 
 		VGfloat matrix[9] = {
-			(VGfloat)xx, (VGfloat)xy, (VGfloat)x0,
-			(VGfloat)yx, (VGfloat)yy, (VGfloat)y0,
-			0.0f,        0.0f,        1.0f
+			(VGfloat)xx, (VGfloat)yx,        0.0f,
+			(VGfloat)xy, (VGfloat)yy,        0.0f,
+			(VGfloat)x0, (VGfloat)y0,        1.0f
 		};
 
 		vgLoadMatrix(context->state->matrix);
@@ -779,15 +781,14 @@ namespace KammoGUI {
 		GnuVGCanvas::SVGDocument* context = (GnuVGCanvas::SVGDocument*)closure;
 		context->use_state_on_top();
 
-		VGubyte cmds[] = {VG_MOVE_TO_ABS, VG_LINE_TO_ABS};
-		VGfloat data[4];
-		context->length_to_pixel(x1, &data[0]);
-		context->length_to_pixel(y1, &data[1]);
-		context->length_to_pixel(x2, &data[2]);
-		context->length_to_pixel(x2, &data[3]);
+		VGfloat _x0, _y0, _x1, _y1;
+		context->length_to_pixel(x1, &_x0);
+		context->length_to_pixel(y1, &_y0);
+		context->length_to_pixel(x2, &_x1);
+		context->length_to_pixel(x2, &_y1);
 
 		vgClearPath(context->temporary_path, VG_PATH_CAPABILITY_ALL);
-		vgAppendPathData(context->temporary_path, 2, cmds, data);
+		vguLine(context->temporary_path, _x0, _y0, _x1, _y1);
 		vgDrawPath(context->temporary_path, context->state->paint_modes);
 
 		return SVG_STATUS_SUCCESS;
@@ -815,6 +816,26 @@ namespace KammoGUI {
 		GnuVGCanvas::SVGDocument* context = (GnuVGCanvas::SVGDocument*)closure;
 		context->use_state_on_top();
 
+		VGfloat _cx, _cy, _rx, _ry;
+		context->length_to_pixel(cx, &_cx);
+		context->length_to_pixel(cy, &_cy);
+		context->length_to_pixel(rx, &_rx);
+		context->length_to_pixel(rx, &_ry);
+
+		static const VGubyte segments[4] = {VG_MOVE_TO | VG_ABSOLUTE,
+						    VG_SCCWARC_TO | VG_ABSOLUTE,
+						    VG_SCCWARC_TO | VG_ABSOLUTE,
+						    VG_CLOSE_PATH};
+		const VGfloat data[12] = {_cx + _rx, _cy,
+					  _rx, _ry, 0, _cx - _rx, _cy,
+					  _rx, _ry, 0, _cx + _rx, _cy};
+
+		KAMOFLAGE_ERROR("::render_ellipse(%f, %f, %f, %f) - (%d)\n",
+				_cx, _cy, _rx, _ry, context->state->paint_modes);
+		vgClearPath(context->temporary_path, VG_PATH_CAPABILITY_ALL);
+		vgAppendPathData(context->temporary_path, 4, segments, data);
+		vgDrawPath(context->temporary_path, context->state->paint_modes);
+
 		return SVG_STATUS_SUCCESS;
 	}
 
@@ -828,31 +849,39 @@ namespace KammoGUI {
 		GnuVGCanvas::SVGDocument* context = (GnuVGCanvas::SVGDocument*)closure;
 		context->use_state_on_top();
 
-		VGubyte cmds[] = {VG_MOVE_TO_ABS,
-				  VG_LINE_TO_REL,
-				  VG_LINE_TO_REL,
-				  VG_LINE_TO_REL,
-				  VG_CLOSE_PATH
-		};
-
-		VGfloat _x, _y, _w, _h;
+		VGfloat _x, _y, _w, _h, _rx, _ry;
 		context->length_to_pixel(x, &_x);
 		context->length_to_pixel(y, &_y);
 		context->length_to_pixel(width, &_w);
 		context->length_to_pixel(height, &_h);
-
-		VGfloat data[] = {
-			_x, _y,
-			_w, 0.0,
-			0.0, _h,
-			-_w, 0.0
-		};
-
-		KAMOFLAGE_ERROR("::render_rect(%f, %f, %f, %f) - (%d)\n",
-				_x, _y, _w, _h, context->state->paint_modes);
+		context->length_to_pixel(rx, &_rx);
+		context->length_to_pixel(ry, &_ry);
 
 		vgClearPath(context->temporary_path, VG_PATH_CAPABILITY_ALL);
-		vgAppendPathData(context->temporary_path, 5, cmds, data);
+
+		if(_rx == 0.0f && _ry == 0.0f) {
+			static const VGubyte cmds[] = {VG_MOVE_TO_ABS,
+						       VG_LINE_TO_REL,
+						       VG_LINE_TO_REL,
+						       VG_LINE_TO_REL,
+						       VG_CLOSE_PATH
+			};
+
+			VGfloat data[] = {
+				_x, _y,
+				_w, 0.0,
+				0.0, _h,
+				-_w, 0.0
+			};
+
+			KAMOFLAGE_ERROR("::render_rect(%f, %f, %f, %f) - (%d)\n",
+					_x, _y, _w, _h, context->state->paint_modes);
+			vgAppendPathData(context->temporary_path, 5, cmds, data);
+		} else {
+			vguRoundRect(context->temporary_path,
+				     _x, _y, _w, _h, _rx, _ry);
+		}
+
 		vgDrawPath(context->temporary_path, context->state->paint_modes);
 
 		return SVG_STATUS_SUCCESS;
@@ -945,7 +974,8 @@ namespace KammoGUI {
 	void GnuVGCanvas::step(JNIEnv *env) {
 		gnuVG_use_context(gnuVGctx);
 
-		VGfloat clearColor[] = {1,1,1,1};
+//		VGfloat clearColor[] = {1,1,1,1};
+		VGfloat clearColor[] = {1.0, 0.631373, 0.137254, 1.0};
 		vgSetfv(VG_CLEAR_COLOR, 4, clearColor);
 		vgClear(0, 0, window_width, window_height);
 
