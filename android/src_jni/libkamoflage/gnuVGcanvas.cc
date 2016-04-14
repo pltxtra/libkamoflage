@@ -33,12 +33,13 @@
 #include <stdlib.h>
 #include <math.h>
 #include <unistd.h>
+#include <sstream>
 
 #include "kamogui.hh"
 #include "gnuVGcanvas.hh"
 #include "libsvg/svgint.h"
 
-#define __DO_KAMOFLAGE_DEBUG
+//#define __DO_KAMOFLAGE_DEBUG
 #include "kamoflage_debug.hh"
 
 namespace KammoGUI {
@@ -273,6 +274,13 @@ namespace KammoGUI {
 		dash = original->dash;
 		dash_phase = original->dash_phase;
 
+		font_family = original->font_family;
+		font_size = original->font_size;
+		font_style = original->font_style;
+		text_anchor = original->text_anchor;
+		font_dirty = true;
+		active_font = VG_INVALID_HANDLE;
+
 		pathSeg.clear();
 		pathData.clear();
 	}
@@ -305,8 +313,55 @@ namespace KammoGUI {
 		dash.clear();
 		dash_phase = 0.0f;
 
+		font_family = "";
+		font_size = 12.0;
+		font_style = gnuVG_NORMAL;
+		text_anchor = gnuVG_ANCHOR_START;
+		font_dirty = true;
+		active_font = VG_INVALID_HANDLE;
+
 		pathSeg.clear();
 		pathData.clear();
+	}
+
+	std::string GnuVGCanvas::SVGDocument::State::create_font_identifier(
+		const std::string& ffamily, gnuVGFontStyle fstyle) {
+		std::ostringstream os ;
+		os << fstyle << ":" << ffamily;
+		return os.str();
+	}
+
+	std::map<std::string, VGFont> GnuVGCanvas::SVGDocument::State::font_table;
+	VGFont GnuVGCanvas::SVGDocument::State::get_font(const std::string &ffamily,
+							 gnuVGFontStyle fstyle) {
+		auto font_identifier = create_font_identifier(ffamily, fstyle);
+
+		VGFont return_font = VG_INVALID_HANDLE;
+		auto font_i = font_table.find(font_identifier);
+		if(font_i == font_table.end()) {
+			KAMOFLAGE_DEBUG("Will try and load font: %s\n", ffamily.c_str());
+			return_font = gnuVG_load_font(ffamily.c_str(), fstyle);
+			if(return_font != VG_INVALID_HANDLE) {
+				KAMOFLAGE_DEBUG("           ---- font load SUCCESS! %p\n", return_font);
+				font_table[font_identifier] = return_font;
+			} else {
+				KAMOFLAGE_DEBUG("           ---- font load failed...\n");
+			}
+		} else {
+			return_font = (*font_i).second;
+		}
+		return return_font;
+	}
+
+	void GnuVGCanvas::SVGDocument::State::configure_font() {
+		if(!font_dirty) return;
+		font_dirty = false;
+		if(font_family == "") {
+			active_font = VG_INVALID_HANDLE;
+			return;
+		}
+
+		active_font = get_font(font_family, font_style);
 	}
 
 /********************************************************
@@ -347,6 +402,10 @@ namespace KammoGUI {
 		vgSeti(VG_FILL_RULE, state->fill_rule);
 		vgSetParameterfv(fill, VG_PAINT_COLOR, 4, state->fill_rgba);
 
+		vgSeti(VG_MATRIX_MODE, VG_MATRIX_GLYPH_USER_TO_SURFACE);
+		parent->loadFundamentalMatrix();
+		vgMultMatrix(state->matrix);
+
 		vgSeti(VG_MATRIX_MODE, VG_MATRIX_PATH_USER_TO_SURFACE);
 		parent->loadFundamentalMatrix();
 		vgMultMatrix(state->matrix);
@@ -385,6 +444,7 @@ namespace KammoGUI {
 			break;
 		}
 
+		state->configure_font();
 	}
 
 /********************************************************
@@ -573,18 +633,51 @@ namespace KammoGUI {
 	}
 
 	svg_status_t GnuVGCanvas::SVGDocument::set_font_family(void* closure, const char *family) {
+		GnuVGCanvas::SVGDocument* context = (GnuVGCanvas::SVGDocument*)closure;
+
+		context->state->font_family = family;
+		context->state->font_dirty = true;
+
 		return SVG_STATUS_SUCCESS;
 	}
 
 	svg_status_t GnuVGCanvas::SVGDocument::set_font_size(void* closure, double size) {
+		GnuVGCanvas::SVGDocument* context = (GnuVGCanvas::SVGDocument*)closure;
+
+		context->state->font_size = size;
+		context->state->font_dirty = true;
+
 		return SVG_STATUS_SUCCESS;
 	}
 
 	svg_status_t GnuVGCanvas::SVGDocument::set_font_style(void* closure, svg_font_style_t font_style) {
+		GnuVGCanvas::SVGDocument* context = (GnuVGCanvas::SVGDocument*)closure;
+
+		// gnUVG does not distinguish between italic and oblique.. Bad gnuVG.. BAD gnuVG!
+		switch(font_style) {
+		case SVG_FONT_STYLE_ITALIC:
+		case SVG_FONT_STYLE_OBLIQUE:
+			context->state->font_style |= gnuVG_ITALIC;
+			break;
+		default:
+			context->state->font_style &= ~gnuVG_ITALIC;
+			break;
+		}
+		context->state->font_dirty = true;
+
 		return SVG_STATUS_SUCCESS;
 	}
 
 	svg_status_t GnuVGCanvas::SVGDocument::set_font_weight(void* closure, unsigned int font_weight) {
+		GnuVGCanvas::SVGDocument* context = (GnuVGCanvas::SVGDocument*)closure;
+
+		if(font_weight >= 700)
+			context->state->font_style |=  gnuVG_BOLD;
+		else
+			context->state->font_style &= ~gnuVG_BOLD;
+
+		context->state->font_dirty = true;
+
 		return SVG_STATUS_SUCCESS;
 	}
 
@@ -672,6 +765,21 @@ namespace KammoGUI {
 	}
 
 	svg_status_t GnuVGCanvas::SVGDocument::set_text_anchor(void* closure, svg_text_anchor_t text_anchor) {
+		GnuVGCanvas::SVGDocument* context = (GnuVGCanvas::SVGDocument*)closure;
+
+		switch(context->state->text_anchor) {
+		default:
+		case SVG_TEXT_ANCHOR_START:
+			context->state->text_anchor = gnuVG_ANCHOR_START;
+			break;
+		case SVG_TEXT_ANCHOR_MIDDLE:
+			context->state->text_anchor = gnuVG_ANCHOR_MIDDLE;
+			break;
+		case SVG_TEXT_ANCHOR_END:
+			context->state->text_anchor = gnuVG_ANCHOR_END;
+			break;
+		}
+
 		return SVG_STATUS_SUCCESS;
 	}
 
@@ -830,8 +938,6 @@ namespace KammoGUI {
 					  _rx, _ry, 0, _cx - _rx, _cy,
 					  _rx, _ry, 0, _cx + _rx, _cy};
 
-		KAMOFLAGE_ERROR("::render_ellipse(%f, %f, %f, %f) - (%d)\n",
-				_cx, _cy, _rx, _ry, context->state->paint_modes);
 		vgClearPath(context->temporary_path, VG_PATH_CAPABILITY_ALL);
 		vgAppendPathData(context->temporary_path, 4, segments, data);
 		vgDrawPath(context->temporary_path, context->state->paint_modes);
@@ -874,8 +980,6 @@ namespace KammoGUI {
 				-_w, 0.0
 			};
 
-			KAMOFLAGE_ERROR("::render_rect(%f, %f, %f, %f) - (%d)\n",
-					_x, _y, _w, _h, context->state->paint_modes);
 			vgAppendPathData(context->temporary_path, 5, cmds, data);
 		} else {
 			vguRoundRect(context->temporary_path,
@@ -893,6 +997,27 @@ namespace KammoGUI {
 							   const char   *utf8) {
 		GnuVGCanvas::SVGDocument* context = (GnuVGCanvas::SVGDocument*)closure;
 		context->use_state_on_top();
+
+		VGfloat _x, _y;
+		context->length_to_pixel(x, &_x);
+		context->length_to_pixel(y, &_y);
+
+		KAMOFLAGE_DEBUG("::render_text(%f, %f, %s)\n",
+				_x, _y, utf8);
+		vgSeti(VG_MATRIX_MODE, VG_MATRIX_GLYPH_USER_TO_SURFACE);
+
+		VGfloat mtrx[9];
+
+		vgGetMatrix(mtrx);
+		vgTranslate(_x, _y);
+
+		gnuVG_render_text(context->state->active_font,
+				  context->state->font_size,
+				  context->state->text_anchor,
+				  utf8, 0.0f, 0.0f);
+
+		vgLoadMatrix(mtrx);
+		vgSeti(VG_MATRIX_MODE, VG_MATRIX_PATH_USER_TO_SURFACE);
 
 		return SVG_STATUS_SUCCESS;
 	}

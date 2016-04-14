@@ -34,6 +34,8 @@ namespace KammoGUI {
 			std::string file_name;
 
 			struct State {
+				static std::map<std::string, VGFont> font_table;
+
 				VGfloat matrix[9];
 
 				VGfloat rgba[4];
@@ -52,7 +54,13 @@ namespace KammoGUI {
 				std::vector<VGfloat> dash;
 				VGfloat dash_phase;
 
+				std::string font_family;
 				VGfloat font_size;
+				gnuVGFontStyle font_style;
+				gnuVGTextAnchor text_anchor;
+				VGFont active_font;
+				bool font_dirty;
+
 				VGfloat viewport_width, viewport_height;
 
 				std::vector<VGubyte> pathSeg;
@@ -60,6 +68,12 @@ namespace KammoGUI {
 
 				void init_by_copy(const State* original);
 				void init_fresh();
+
+				std::string create_font_identifier(const std::string& ffamily,
+								   gnuVGFontStyle fstyle);
+				VGFont get_font(const std::string &identifier,
+						gnuVGFontStyle fstyle);
+				void configure_font();
 			};
 
 			VGfloat DPI;
@@ -224,7 +238,7 @@ namespace KammoGUI {
 		VGfloat fundamentalMatrix[9];
 
 	public:
-		void loadFundamentalMatrix() {
+		inline void loadFundamentalMatrix() {
 			vgLoadMatrix(fundamentalMatrix);
 		}
 
