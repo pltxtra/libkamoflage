@@ -1114,13 +1114,13 @@ namespace KammoGUI {
  ********************************************************/
 
 	static void printGLString(const char *name, GLenum s) {
-		const char *v = (const char *) glGetString(s);
-		KAMOFLAGE_DEBUG("GL %s = %s\n", name, v);
+		KAMOFLAGE_DEBUG("GL %s = %s\n", name, glGetString(s));
 	}
 
 	static void checkGlError(const char* op) {
-		for (GLint error = glGetError(); error; error
-			     = glGetError()) {
+		for (GLint error = glGetError();
+		     error;
+		     error = glGetError()) {
 			KAMOFLAGE_ERROR("after %s() glError (0x%x)\n", op, error);
 		}
 	}
