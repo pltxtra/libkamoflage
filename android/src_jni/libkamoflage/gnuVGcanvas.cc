@@ -868,6 +868,70 @@ namespace KammoGUI {
 							      svg_view_box_t view_box,
 							      svg_length_t *width,
 							      svg_length_t *height) {
+		GnuVGCanvas::SVGDocument* context = (GnuVGCanvas::SVGDocument*)closure;
+
+		VGfloat vpar, svgar;
+		VGfloat logic_width, logic_height;
+		VGfloat logic_x, logic_y;
+		VGfloat phys_width, phys_height;
+
+		context->length_to_pixel(width, &phys_width);
+		context->length_to_pixel(height, &phys_height);
+
+		vpar = view_box.box.width / view_box.box.height;
+		svgar = phys_width / phys_height;
+		logic_x = view_box.box.x;
+		logic_y = view_box.box.y;
+		logic_width = view_box.box.width;
+		logic_height = view_box.box.height;
+
+		vgLoadMatrix(context->state->matrix);
+
+		if (view_box.aspect_ratio == SVG_PRESERVE_ASPECT_RATIO_NONE)
+		{
+			vgScale(phys_width / logic_width,
+				phys_height / logic_height);
+			vgTranslate(-logic_x, -logic_y);
+		}
+		else if ((vpar < svgar && view_box.meet_or_slice == SVG_MEET_OR_SLICE_MEET) ||
+			 (vpar >= svgar && view_box.meet_or_slice == SVG_MEET_OR_SLICE_SLICE))
+		{
+			vgScale(phys_height / logic_height, phys_height / logic_height);
+
+			if (view_box.aspect_ratio == SVG_PRESERVE_ASPECT_RATIO_XMINYMIN ||
+			    view_box.aspect_ratio == SVG_PRESERVE_ASPECT_RATIO_XMINYMID ||
+			    view_box.aspect_ratio == SVG_PRESERVE_ASPECT_RATIO_XMINYMAX)
+				vgTranslate(-logic_x, -logic_y);
+			else if(view_box.aspect_ratio == SVG_PRESERVE_ASPECT_RATIO_XMIDYMIN ||
+				view_box.aspect_ratio == SVG_PRESERVE_ASPECT_RATIO_XMIDYMID ||
+				view_box.aspect_ratio == SVG_PRESERVE_ASPECT_RATIO_XMIDYMAX)
+				vgTranslate(-logic_x -
+					    (logic_width - phys_width * logic_height / phys_height) / 2,
+					    -logic_y);
+			else
+				vgTranslate(-logic_x - (logic_width - phys_width * logic_height / phys_height),
+					    -logic_y);
+		}
+		else
+		{
+			vgScale(phys_width / logic_width, phys_width / logic_width);
+
+			if (view_box.aspect_ratio == SVG_PRESERVE_ASPECT_RATIO_XMINYMIN ||
+			    view_box.aspect_ratio == SVG_PRESERVE_ASPECT_RATIO_XMIDYMIN ||
+			    view_box.aspect_ratio == SVG_PRESERVE_ASPECT_RATIO_XMAXYMIN)
+				vgTranslate(-logic_x, -logic_y);
+			else if(view_box.aspect_ratio == SVG_PRESERVE_ASPECT_RATIO_XMINYMID ||
+				view_box.aspect_ratio == SVG_PRESERVE_ASPECT_RATIO_XMIDYMID ||
+				view_box.aspect_ratio == SVG_PRESERVE_ASPECT_RATIO_XMAXYMID)
+				vgTranslate(-logic_x,
+					    -logic_y -
+					    (logic_height - phys_height * logic_width / phys_width) / 2);
+			else
+				vgTranslate(-logic_x,
+					    -logic_y - (logic_height - phys_height * logic_width / phys_width));
+		}
+
+		vgGetMatrix(context->state->matrix);
 		return SVG_STATUS_SUCCESS;
 	}
 
