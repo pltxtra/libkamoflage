@@ -838,10 +838,27 @@ namespace KammoGUI {
 
 /* transform */
 	svg_status_t GnuVGCanvas::SVGDocument::apply_clip_box(void* closure,
-							      svg_length_t *x,
-							      svg_length_t *y,
-							      svg_length_t *width,
-							      svg_length_t *height) {
+							      svg_length_t *x_l,
+							      svg_length_t *y_l,
+							      svg_length_t *width_l,
+							      svg_length_t *height_l) {
+		GnuVGCanvas::SVGDocument* context = (GnuVGCanvas::SVGDocument*)closure;
+
+		VGfloat x, y, width, height;
+
+		context->length_to_pixel(x_l, &x);
+		context->length_to_pixel(y_l, &y);
+		context->length_to_pixel(width_l, &width);
+		context->length_to_pixel(height_l, &height);
+
+		width += x; height += y;
+
+#if 0
+		ANDROID_CANVAS_CLIP_RECT(svg_android,
+					 (float)(x), (float)(y),
+					 (float)(width),
+					 (float)(height));
+#endif
 		return SVG_STATUS_SUCCESS;
 	}
 
@@ -1114,7 +1131,7 @@ namespace KammoGUI {
  ********************************************************/
 
 	static void printGLString(const char *name, GLenum s) {
-		KAMOFLAGE_DEBUG("GL %s = %s\n", name, glGetString(s));
+		KAMOFLAGE_ERROR("GL %s = %s\n", name, glGetString(s));
 	}
 
 	static void checkGlError(const char* op) {
