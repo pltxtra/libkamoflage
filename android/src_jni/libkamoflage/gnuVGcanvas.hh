@@ -38,14 +38,17 @@ namespace KammoGUI {
 
 				VGfloat matrix[9];
 
-				VGfloat rgba[4];
-
-				VGint fill_rule;
-				VGfloat fill_rgba[4];
+				svg_color_t color;
+				VGfloat opacity;
 
 				VGbitfield paint_modes;
 
-				VGfloat stroke_rgba[4];
+				VGint fill_rule;
+				svg_paint_t fill_paint;
+				VGfloat fill_opacity;
+
+				svg_paint_t stroke_paint;
+				VGfloat stroke_opacity;
 				svg_length_t stroke_width;
 				svg_stroke_line_cap_t line_cap;
 				svg_stroke_line_join_t line_join;
@@ -86,7 +89,14 @@ namespace KammoGUI {
 			std::stack<State*> state_stack;
 			std::stack<State*> state_unused;
 
-			void set_paint(VGfloat *__rgba, const svg_paint_t* paint);
+			void set_color_and_alpha(
+				VGPaint* vgpaint, State* state, const svg_color_t *color, double alpha);
+			void set_gradient(
+				VGPaint* vgpaint,
+				State* state,
+				svg_gradient_t* gradient);
+			void set_paint(VGPaint* vgpaint, State* state,
+				       const svg_paint_t* paint, VGfloat opacity);
 			void length_to_pixel(svg_length_t *length, VGfloat* pixel);
 
 			void stack_push();

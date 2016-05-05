@@ -165,42 +165,6 @@ namespace KammoGUI {
  *
  ********************************************************/
 
-	void GnuVGCanvas::SVGDocument::set_paint(VGfloat *__rgba, const svg_paint_t* paint) {
-		switch(paint->type) {
-		case SVG_PAINT_TYPE_NONE:
-			__rgba[3] = 0.0f;
-			break;
-		case SVG_PAINT_TYPE_COLOR:
-			if(paint->p.color.is_current_color) {
-				__rgba[0] = state->rgba[0];
-				__rgba[1] = state->rgba[1];
-				__rgba[2] = state->rgba[2];
-				__rgba[3] = state->rgba[3];
-			} else {
-				VGuint c;
-				VGfloat c_f;
-				c = (paint->p.color.rgb & 0xff0000) >> 16;
-				c_f = c;
-				__rgba[0] = c_f / 255.0;
-
-				c = (paint->p.color.rgb & 0x00ff00) >> 8;
-				c_f = c;
-				__rgba[1] = c_f / 255.0;
-
-				c = (paint->p.color.rgb & 0x0000ff) >> 0;
-				c_f = c;
-				__rgba[2] = c_f / 255.0;
-			}
-
-			break;
-		case SVG_PAINT_TYPE_GRADIENT:
-			break;
-		case SVG_PAINT_TYPE_PATTERN:
-			break;
-		}
-
-	}
-
 	void GnuVGCanvas::SVGDocument::length_to_pixel(svg_length_t *length, VGfloat* pixel) {
 		VGfloat width, height;
 
@@ -257,15 +221,16 @@ namespace KammoGUI {
 		for(int i = 0; i < 9; i++) {
 			matrix[i] = original->matrix[i];
 		}
-		for(int i = 0; i < 4; i++) {
-			fill_rgba[i] = original->fill_rgba[i];
-			stroke_rgba[i] = original->stroke_rgba[i];
-			rgba[i] = original->rgba[i];
-		}
-
-		fill_rule = original->fill_rule;
+		color = original->color;
+		opacity = original->opacity;
 		paint_modes = original->paint_modes;
 
+		fill_paint = original->fill_paint;
+		fill_opacity = original->fill_opacity;
+		fill_rule = original->fill_rule;
+
+		stroke_paint = original->stroke_paint;
+		stroke_opacity = original->stroke_opacity;
 		stroke_width.unit = original->stroke_width.unit;
 		stroke_width.value = original->stroke_width.value;
 		line_cap = original->line_cap;
@@ -294,15 +259,22 @@ namespace KammoGUI {
 		for(int i = 0; i < 9; i++)
 			matrix[i] = identity[i];
 
-		// black
-		rgba[0] = fill_rgba[0] = stroke_rgba[0] = 0;
-		rgba[1] = fill_rgba[1] = stroke_rgba[1] = 0;
-		rgba[2] = fill_rgba[2] = stroke_rgba[2] = 0;
-		rgba[3] = fill_rgba[3] = stroke_rgba[3] = 255;
+		// black is the default
+		color.rgb = 0x000000;
+		color.is_current_color = 0;
+		opacity = 1.0f;
+		paint_modes = VG_FILL_PATH;
 
+		fill_paint.type = SVG_PAINT_TYPE_COLOR;
+		fill_paint.p.color.rgb = 0x000000;
+		fill_paint.p.color.is_current_color = 0;
 		fill_rule = VG_EVEN_ODD;
-		paint_modes = 0;
+		fill_opacity = 1.0f;
 
+		stroke_paint.type = SVG_PAINT_TYPE_NONE;
+		stroke_paint.p.color.rgb = 0x000000;
+		stroke_paint.p.color.is_current_color = 0;
+		stroke_opacity = 0.0f;
 		line_cap = SVG_STROKE_LINE_CAP_BUTT;
 		line_join = SVG_STROKE_LINE_JOIN_MITER;
 		miter_limit = 4.0f;
@@ -398,9 +370,198 @@ namespace KammoGUI {
 		state = state_stack.top();
 	}
 
+	void GnuVGCanvas::SVGDocument::set_color_and_alpha(
+		VGPaint* vgpaint, State* state,
+		const svg_color_t *color, double alpha) {
+		if(color->is_current_color)
+			color = &state->color;
+
+		VGfloat rgba[4];
+		VGuint c;
+		VGfloat c_f;
+
+		c = (color->rgb & 0xff0000) >> 16;
+		c_f = c;
+		rgba[0] = c_f / 255.0;
+
+		c = (color->rgb & 0x00ff00) >> 8;
+		c_f = c;
+		rgba[1] = c_f / 255.0;
+
+		c = (color->rgb & 0x0000ff) >> 0;
+		c_f = c;
+		rgba[2] = c_f / 255.0;
+
+		rgba[3] = alpha;
+
+		vgSetParameterfv(*vgpaint, VG_PAINT_COLOR, 4, rgba);
+		vgSetParameteri(*vgpaint, VG_PAINT_TYPE, VG_PAINT_TYPE_COLOR);
+	}
+
+	void GnuVGCanvas::SVGDocument::set_gradient(VGPaint* vgpaint,
+						    State* state,
+						    svg_gradient_t* gradient) {
+		VGfloat gradientMatrix[] = {
+			1.0f, 0.0f, 0.0f,
+			0.0f, 1.0f, 0.0f,
+			0.0f, 0.0f, 0.0f
+		};
+
+		/* apply bounding box - if applicable */
+		if(gradient->units == SVG_GRADIENT_UNITS_BBOX) {
+			VGfloat sp_ep[4];
+			gnuVG_get_bounding_box(sp_ep);
+
+			VGfloat w = sp_ep[2] - sp_ep[0];
+			VGfloat h = sp_ep[3] - sp_ep[1];
+
+			gradientMatrix[2] = sp_ep[0];
+			gradientMatrix[5] = sp_ep[2];
+
+			gradientMatrix[0] = w;
+			gradientMatrix[4] = h;
+		}
+
+		/* set stops */
+		VGfloat stop_data[5 * gradient->num_stops];
+		int stop_index, stop_offset;
+		for(stop_index = 0, stop_offset = 0;
+		    stop_index < gradient->num_stops;
+		    ++stop_index, stop_offset += 5) {
+			svg_gradient_stop_t *stop = &gradient->stops[stop_index];
+			int cdat_i;
+			VGfloat cdat_f;
+
+			// offset
+			stop_data[stop_offset + 0] = stop->offset;
+
+			// R
+			cdat_i = (stop->color.rgb & 0xff0000) >> 16;
+			cdat_f = (VGfloat)cdat_i;
+			stop_data[stop_offset + 1] = cdat_f / 255.0f;
+
+			// G
+			cdat_i = (stop->color.rgb & 0x00ff00) >>  8;
+			cdat_f = (VGfloat)cdat_i;
+			stop_data[stop_offset + 2] = cdat_f / 255.0f;
+
+			// B
+			cdat_i = (stop->color.rgb & 0x0000ff) >> 9;
+			cdat_f = (VGfloat)cdat_i;
+			stop_data[stop_offset + 3] = cdat_f / 255.0f;
+
+			// A
+			stop_data[stop_offset + 4] = stop->opacity;
+		}
+
+		vgSetParameterfv(*vgpaint, VG_PAINT_COLOR_RAMP_STOPS,
+				 5 * gradient->num_stops,
+				 stop_data);
+
+		/* set spread mode */
+		switch (gradient->spread) {
+		case SVG_GRADIENT_SPREAD_REPEAT:
+			vgSetParameteri(*vgpaint,
+					VG_PAINT_COLOR_RAMP_SPREAD_MODE,
+					VG_COLOR_RAMP_SPREAD_REPEAT);
+			break;
+		case SVG_GRADIENT_SPREAD_REFLECT:
+			vgSetParameteri(*vgpaint,
+					VG_PAINT_COLOR_RAMP_SPREAD_MODE,
+					VG_COLOR_RAMP_SPREAD_REFLECT);
+			break;
+		default:
+			vgSetParameteri(*vgpaint,
+					VG_PAINT_COLOR_RAMP_SPREAD_MODE,
+					VG_COLOR_RAMP_SPREAD_PAD);
+			break;
+		}
+
+		/* select linear or radial gradient */
+		switch (gradient->type) {
+		case SVG_GRADIENT_LINEAR:
+		{
+			VGfloat lingrad[4];
+
+			length_to_pixel(&gradient->u.linear.x1, &lingrad[0]);
+			length_to_pixel(&gradient->u.linear.y1, &lingrad[1]);
+			length_to_pixel(&gradient->u.linear.x2, &lingrad[2]);
+			length_to_pixel(&gradient->u.linear.y2, &lingrad[3]);
+
+			vgSetParameteri(*vgpaint, VG_PAINT_TYPE, VG_PAINT_TYPE_LINEAR_GRADIENT);
+			vgSetParameterfv(*vgpaint, VG_PAINT_LINEAR_GRADIENT, 4, lingrad);
+
+		}
+		break;
+		case SVG_GRADIENT_RADIAL:
+		{
+			VGfloat radgrad[5];
+
+			length_to_pixel(&gradient->u.radial.cx, &radgrad[0]);
+			length_to_pixel(&gradient->u.radial.cy, &radgrad[1]);
+			length_to_pixel(&gradient->u.radial.fx, &radgrad[2]);
+			length_to_pixel(&gradient->u.radial.fy, &radgrad[3]);
+			length_to_pixel(&gradient->u.radial.r,  &radgrad[4]);
+
+			vgSetParameteri(*vgpaint, VG_PAINT_TYPE, VG_PAINT_TYPE_RADIAL_GRADIENT);
+			vgSetParameterfv(*vgpaint, VG_PAINT_RADIAL_GRADIENT, 5, radgrad);
+		} break;
+		}
+
+		if(vgpaint == &fill)
+			vgSeti(VG_MATRIX_MODE, VG_MATRIX_FILL_PAINT_TO_USER);
+		else
+			vgSeti(VG_MATRIX_MODE, VG_MATRIX_STROKE_PAINT_TO_USER);
+
+		vgLoadMatrix(gradientMatrix);
+
+		gradientMatrix[0] = gradient->transform[0];
+		gradientMatrix[1] = gradient->transform[1];
+		gradientMatrix[2] = 0.0f;
+		gradientMatrix[3] = gradient->transform[2];
+		gradientMatrix[4] = gradient->transform[3];
+		gradientMatrix[5] = 0.0f;
+		gradientMatrix[6] = gradient->transform[4];
+		gradientMatrix[7] = gradient->transform[5];
+		gradientMatrix[8] = 1.0f;
+
+		vgMultMatrix(gradientMatrix);
+	}
+
+	void GnuVGCanvas::SVGDocument::set_paint(
+		VGPaint* vgpaint, State* state,
+		const svg_paint_t* paint, VGfloat opacity) {
+
+		opacity *= state->opacity;
+
+		switch(paint->type) {
+		case SVG_PAINT_TYPE_NONE: /* we would not be called if this is actually set */
+			break;
+		case SVG_PAINT_TYPE_COLOR:
+			set_color_and_alpha(vgpaint, state, &paint->p.color, opacity);
+			break;
+		case SVG_PAINT_TYPE_GRADIENT:
+			set_gradient(vgpaint, state, paint->p.gradient);
+			break;
+		case SVG_PAINT_TYPE_PATTERN:
+			break;
+		}
+
+	}
+
 	void GnuVGCanvas::SVGDocument::use_state_on_top() {
-		vgSeti(VG_FILL_RULE, state->fill_rule);
-		vgSetParameterfv(fill, VG_PAINT_COLOR, 4, state->fill_rgba);
+		if(state->fill_paint.type) {
+			state->paint_modes |= VG_FILL_PATH;
+			set_paint(&fill, state, &state->fill_paint, state->fill_opacity);
+			vgSeti(VG_FILL_RULE, state->fill_rule);
+		} else
+			state->paint_modes &= ~VG_FILL_PATH;
+
+		if(state->stroke_paint.type) {
+			state->paint_modes |= VG_STROKE_PATH;
+			set_paint(&stroke, state, &state->stroke_paint, state->stroke_opacity);
+		} else
+			state->paint_modes &= ~VG_STROKE_PATH;
 
 		vgSeti(VG_MATRIX_MODE, VG_MATRIX_GLYPH_USER_TO_SURFACE);
 		parent->loadFundamentalMatrix();
@@ -416,7 +577,6 @@ namespace KammoGUI {
 		} else
 			vgSetfv(VG_STROKE_DASH_PATTERN, 0, nullptr);
 
-		vgSetParameterfv(stroke, VG_PAINT_COLOR, 4, state->stroke_rgba);
 		VGfloat width;
 		length_to_pixel(&state->stroke_width, &width);
 		vgSetf(VG_STROKE_LINE_WIDTH, (VGfloat)width);
@@ -586,19 +746,7 @@ namespace KammoGUI {
 	svg_status_t GnuVGCanvas::SVGDocument::set_color(void* closure, const svg_color_t *color) {
 		GnuVGCanvas::SVGDocument* context = (GnuVGCanvas::SVGDocument*)closure;
 
-		VGuint c;
-		VGfloat c_f;
-		c = (color->rgb & 0xff0000) >> 16;
-		c_f = c;
-		context->state->rgba[0] = c_f / 255.0;
-
-		c = (color->rgb & 0x00ff00) >> 8;
-		c_f = c;
-		context->state->rgba[1] = c_f / 255.0;
-
-		c = (color->rgb & 0x0000ff) >> 0;
-		c_f = c;
-		context->state->rgba[2] = c_f / 255.0;
+		context->state->color = *color;
 
 		return SVG_STATUS_SUCCESS;
 	}
@@ -606,12 +754,7 @@ namespace KammoGUI {
 	svg_status_t GnuVGCanvas::SVGDocument::set_fill_opacity(void* closure, double fill_opacity) {
 		GnuVGCanvas::SVGDocument* context = (GnuVGCanvas::SVGDocument*)closure;
 
-		context->state->fill_rgba[3] = ((VGfloat)fill_opacity) * context->state->rgba[3];
-
-		if(fill_opacity > 0.0)
-			context->state->paint_modes |= VG_FILL_PATH;
-		else
-			context->state->paint_modes &= ~VG_FILL_PATH;
+		context->state->fill_opacity = (VGfloat)fill_opacity;
 
 		return SVG_STATUS_SUCCESS;
 	}
@@ -619,7 +762,7 @@ namespace KammoGUI {
 	svg_status_t GnuVGCanvas::SVGDocument::set_fill_paint(void* closure, const svg_paint_t *paint) {
 		GnuVGCanvas::SVGDocument* context = (GnuVGCanvas::SVGDocument*)closure;
 
-		context->set_paint(context->state->fill_rgba, paint);
+		context->state->fill_paint = *paint;
 
 		return SVG_STATUS_SUCCESS;
 	}
@@ -684,7 +827,7 @@ namespace KammoGUI {
 	svg_status_t GnuVGCanvas::SVGDocument::set_opacity(void* closure, double opacity) {
 		GnuVGCanvas::SVGDocument* context = (GnuVGCanvas::SVGDocument*)closure;
 
-		context->state->rgba[3] = opacity;
+		context->state->opacity = opacity;
 
 		return SVG_STATUS_SUCCESS;
 	}
@@ -738,12 +881,7 @@ namespace KammoGUI {
 	svg_status_t GnuVGCanvas::SVGDocument::set_stroke_opacity(void* closure, double stroke_opacity) {
 		GnuVGCanvas::SVGDocument* context = (GnuVGCanvas::SVGDocument*)closure;
 
-		context->state->stroke_rgba[3] = ((VGfloat)stroke_opacity) * context->state->rgba[3];
-
-		if(stroke_opacity > 0.0)
-			context->state->paint_modes |= VG_STROKE_PATH;
-		else
-			context->state->paint_modes &= ~VG_STROKE_PATH;
+		context->state->stroke_opacity = (VGfloat)stroke_opacity;
 
 		return SVG_STATUS_SUCCESS;
 	}
@@ -751,7 +889,7 @@ namespace KammoGUI {
 	svg_status_t GnuVGCanvas::SVGDocument::set_stroke_paint(void* closure, const svg_paint_t *paint) {
 		GnuVGCanvas::SVGDocument* context = (GnuVGCanvas::SVGDocument*)closure;
 
-		context->set_paint(context->state->stroke_rgba, paint);
+		context->state->stroke_paint = *paint;
 
 		return SVG_STATUS_SUCCESS;
 	}
