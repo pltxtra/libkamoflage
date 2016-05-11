@@ -404,11 +404,19 @@ namespace KammoGUI {
 		VGfloat gradientMatrix[] = {
 			1.0f, 0.0f, 0.0f,
 			0.0f, 1.0f, 0.0f,
-			0.0f, 0.0f, 0.0f
+			0.0f, 0.0f, 1.0f
 		};
 
 		/* apply bounding box - if applicable */
 		if(gradient->units == SVG_GRADIENT_UNITS_BBOX) {
+			KAMOFLAGE_ERROR("Trying to use BBOX - will exit.\n");
+			// we will exit here - this code doesn't work
+			// we need to get the non-transformed
+			// bounding box of the path that we will
+			// render - not the on-surface bounding
+			// box of the last rendered path.
+			exit(0);
+
 			VGfloat sp_ep[4];
 			gnuVG_get_bounding_box(sp_ep);
 
@@ -425,6 +433,7 @@ namespace KammoGUI {
 		/* set stops */
 		VGfloat stop_data[5 * gradient->num_stops];
 		int stop_index, stop_offset;
+
 		for(stop_index = 0, stop_offset = 0;
 		    stop_index < gradient->num_stops;
 		    ++stop_index, stop_offset += 5) {
@@ -446,7 +455,7 @@ namespace KammoGUI {
 			stop_data[stop_offset + 2] = cdat_f / 255.0f;
 
 			// B
-			cdat_i = (stop->color.rgb & 0x0000ff) >> 9;
+			cdat_i = (stop->color.rgb & 0x0000ff) >> 0;
 			cdat_f = (VGfloat)cdat_i;
 			stop_data[stop_offset + 3] = cdat_f / 255.0f;
 
