@@ -218,7 +218,7 @@ namespace KammoGUI {
  ********************************************************/
 
 	void GnuVGCanvas::SVGDocument::State::init_by_copy(const GnuVGCanvas::SVGDocument::State* original) {
-		for(int i = 0; i < 9; i++) {
+		for(int i = 0; i < 9; ++i) {
 			matrix[i] = original->matrix[i];
 		}
 		color = original->color;
@@ -236,6 +236,9 @@ namespace KammoGUI {
 		line_cap = original->line_cap;
 		line_join = original->line_join;
 		miter_limit = original->miter_limit;
+
+		has_clip_box = false; // we don't copy the clip box
+
 		dash = original->dash;
 		dash_phase = original->dash_phase;
 
@@ -281,6 +284,8 @@ namespace KammoGUI {
 		stroke_width.value = 1.0f;
 		stroke_width.unit = SVG_LENGTH_UNIT_PX;
 		stroke_width.orientation = SVG_LENGTH_ORIENTATION_OTHER;
+
+		has_clip_box = false;
 
 		dash.clear();
 		dash_phase = 0.0f;
@@ -357,7 +362,7 @@ namespace KammoGUI {
 			new_state->init_fresh();
 		}
 
-		state_stack.push(new_state);
+		state_stack.push_back(new_state);
 		state = new_state;
 	}
 
@@ -366,8 +371,8 @@ namespace KammoGUI {
 			throw GnuVGStateStackEmpty(parent->get_id());
 
 		state_unused.push(state_stack.top());
-		state_stack.pop();
-		state = state_stack.top();
+		state_stack.pop_back();
+		state = state_stack.back();
 	}
 
 	void GnuVGCanvas::SVGDocument::set_color_and_alpha(
@@ -558,6 +563,56 @@ namespace KammoGUI {
 
 	}
 
+	void GnuVGCanvas::SVGDocument::regenerate_mask() {
+		vgMask(VG_INVALID_HANDLE, VG_FILL_MASK,
+		       0, 0,
+		       parent->window_height, parent->window_width);
+
+		vgSeti(VG_MATRIX_MODE, VG_MATRIX_PATH_USER_TO_SURFACE);
+
+		static const VGubyte cmds[] = {VG_MOVE_TO_ABS,
+					       VG_LINE_TO_REL,
+					       VG_LINE_TO_REL,
+					       VG_LINE_TO_REL,
+					       VG_CLOSE_PATH
+		};
+		VGfloat data[8];
+
+		for(auto s : state_stack) {
+			// if the current state doesn't
+			// set a clip box - we don't touch
+			// the mask - just proceed to next
+			if(!(s->has_clip_box))
+			   continue;
+
+			parent->loadFundamentalMatrix();
+			vgMultMatrix(s->matrix);
+
+			// start at x,y
+			data[0] = clip_box[0];
+			data[1] = clip_box[1];
+
+			// move w horizontally
+			data[2] = clip_box[2];
+			data[3] = 0.0f;
+
+			// move h vertically
+			data[4] = 0.0f;
+			dara[5] = clip_box[3];
+
+			// move -w horizontally
+			data[6] = -clip_box[2];
+			data[7] = 0.0f;
+
+			vgClearPath(temporary_path, VG_PATH_CAPABILITY_ALL);
+			vgAppendPathData(temporary_path, 5, cmds, data);
+
+			vgRenderToMask(temporary_path,
+				       VG_FILL_PATH,
+				       VG_INTERSECT_MASK);
+		}
+	}
+
 	void GnuVGCanvas::SVGDocument::use_state_on_top() {
 		if(state->fill_paint.type) {
 			state->paint_modes |= VG_FILL_PATH;
@@ -575,6 +630,8 @@ namespace KammoGUI {
 		vgSeti(VG_MATRIX_MODE, VG_MATRIX_GLYPH_USER_TO_SURFACE);
 		parent->loadFundamentalMatrix();
 		vgMultMatrix(state->matrix);
+
+		regenerate_mask();
 
 		vgSeti(VG_MATRIX_MODE, VG_MATRIX_PATH_USER_TO_SURFACE);
 		parent->loadFundamentalMatrix();
@@ -990,7 +1047,7 @@ namespace KammoGUI {
 							      svg_length_t *width_l,
 							      svg_length_t *height_l) {
 		GnuVGCanvas::SVGDocument* context = (GnuVGCanvas::SVGDocument*)closure;
-
+		auto state = context->state;
 		VGfloat x, y, width, height;
 
 		context->length_to_pixel(x_l, &x);
@@ -998,14 +1055,12 @@ namespace KammoGUI {
 		context->length_to_pixel(width_l, &width);
 		context->length_to_pixel(height_l, &height);
 
-		width += x; height += y;
+		context->has_clip_box = true;
+		state->clip_box[0] = (VGint)x;
+		state->clip_box[1] = (VGint)y;
+		state->clip_box[2] = (VGint)width;
+		state->clip_box[3] = (VGint)height;
 
-#if 0
-		ANDROID_CANVAS_CLIP_RECT(svg_android,
-					 (float)(x), (float)(y),
-					 (float)(width),
-					 (float)(height));
-#endif
 		return SVG_STATUS_SUCCESS;
 	}
 

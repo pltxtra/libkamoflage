@@ -54,6 +54,9 @@ namespace KammoGUI {
 				svg_stroke_line_join_t line_join;
 				VGfloat miter_limit;
 
+				bool has_clip_box;
+				VGint clip_box[4]; // x,y,w,h
+
 				std::vector<VGfloat> dash;
 				VGfloat dash_phase;
 
@@ -86,7 +89,7 @@ namespace KammoGUI {
 			VGPath temporary_path;
 
 			State* state;
-			std::stack<State*> state_stack;
+			std::vector<State*> state_stack;
 			std::stack<State*> state_unused;
 
 			void set_color_and_alpha(
@@ -97,6 +100,7 @@ namespace KammoGUI {
 				svg_gradient_t* gradient);
 			void set_paint(VGPaint* vgpaint, State* state,
 				       const svg_paint_t* paint, VGfloat opacity);
+			void regenerate_mask();
 			void length_to_pixel(svg_length_t *length, VGfloat* pixel);
 
 			void stack_push();
