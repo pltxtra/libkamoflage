@@ -55,7 +55,7 @@ namespace KammoGUI {
 				VGfloat miter_limit;
 
 				bool has_clip_box;
-				VGint clip_box[4]; // x,y,w,h
+				VGfloat clip_box[4]; // x,y,w,h
 
 				std::vector<VGfloat> dash;
 				VGfloat dash_phase;

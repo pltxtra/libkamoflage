@@ -42,6 +42,43 @@
 //#define __DO_KAMOFLAGE_DEBUG
 #include "kamoflage_debug.hh"
 
+
+#include <time.h>
+#define GKV_FACT 0.99
+
+#ifdef DEBUG_FRAMERATE
+static double TimeSpecToSeconds(struct timespec* ts)
+{
+    return (double)ts->tv_sec + (double)ts->tv_nsec / 1000000000.0;
+}
+
+#define GKV_START_TIMER(NAME) \
+	struct timespec NAME##start; \
+	struct timespec NAME##end; \
+	(void) clock_gettime(CLOCK_MONOTONIC_RAW, &NAME##start);
+
+#define GKV_STOP_TIMER(NAME)	       \
+	(void) clock_gettime(CLOCK_MONOTONIC_RAW, &NAME##end);	\
+	NAME##_value_storage = (GKV_FACT * NAME##_value_storage) + (1.0 - GKV_FACT) * (TimeSpecToSeconds(&NAME##end) - TimeSpecToSeconds(&NAME##start));
+
+#define GKV_TIMER_DECLARE(NAME) double NAME##_value_storage = 0.0
+#define GKV_USE_VALUE(NAME) (NAME##_value_storage)
+
+#else
+
+#define GKV_START_TIMER(NAME)
+#define GKV_STOP_TIMER(NAME)
+#define GKV_TIMER_DECLARE(NAME)
+#define GKV_USE_VALUE(NAME)
+#endif
+
+GKV_TIMER_DECLARE(use_state_on_top);
+GKV_TIMER_DECLARE(full_frame);
+GKV_TIMER_DECLARE(regenerate_mask);
+GKV_TIMER_DECLARE(render_to_mask);
+GKV_TIMER_DECLARE(clear_mask);
+int use_state_on_top_counter = 0;
+
 namespace KammoGUI {
 
 /********************************************************
@@ -357,7 +394,7 @@ namespace KammoGUI {
 		}
 
 		if(state_stack.size() != 0) {
-			new_state->init_by_copy(state_stack.top());
+			new_state->init_by_copy(state_stack.back());
 		} else {
 			new_state->init_fresh();
 		}
@@ -370,7 +407,7 @@ namespace KammoGUI {
 		if(state_stack.size() <= 1)
 			throw GnuVGStateStackEmpty(parent->get_id());
 
-		state_unused.push(state_stack.top());
+		state_unused.push(state_stack.back());
 		state_stack.pop_back();
 		state = state_stack.back();
 	}
@@ -564,9 +601,14 @@ namespace KammoGUI {
 	}
 
 	void GnuVGCanvas::SVGDocument::regenerate_mask() {
-		vgMask(VG_INVALID_HANDLE, VG_FILL_MASK,
+		GKV_START_TIMER(clear_mask);
+
+		vgMask(VG_INVALID_HANDLE,
+		       VG_FILL_MASK,
 		       0, 0,
-		       parent->window_height, parent->window_width);
+		       parent->window_width / 4, parent->window_height);
+
+		GKV_STOP_TIMER(clear_mask);
 
 		vgSeti(VG_MATRIX_MODE, VG_MATRIX_PATH_USER_TO_SURFACE);
 
@@ -578,42 +620,52 @@ namespace KammoGUI {
 		};
 		VGfloat data[8];
 
+		parent->loadFundamentalMatrix();
 		for(auto s : state_stack) {
 			// if the current state doesn't
 			// set a clip box - we don't touch
 			// the mask - just proceed to next
-			if(!(s->has_clip_box))
-			   continue;
+			if(s->has_clip_box) {
+				// start at x,y
+				data[0] = s->clip_box[0];
+				data[1] = s->clip_box[1];
 
+				// move w horizontally
+				data[2] = s->clip_box[2];
+				data[3] = 0.0f;
+
+				// move h vertically
+				data[4] = 0.0f;
+				data[5] = s->clip_box[3];
+
+				// move -w horizontally
+				data[6] = -s->clip_box[2];
+				data[7] = 0.0f;
+
+				vgClearPath(temporary_path, VG_PATH_CAPABILITY_ALL);
+				vgAppendPathData(temporary_path, 5, cmds, data);
+
+				GKV_START_TIMER(render_to_mask);
+				vgRenderToMask(temporary_path,
+					       VG_FILL_PATH,
+					       //VG_FILL_MASK
+					       VG_INTERSECT_MASK
+					);
+				GKV_STOP_TIMER(render_to_mask);
+			}
 			parent->loadFundamentalMatrix();
 			vgMultMatrix(s->matrix);
-
-			// start at x,y
-			data[0] = clip_box[0];
-			data[1] = clip_box[1];
-
-			// move w horizontally
-			data[2] = clip_box[2];
-			data[3] = 0.0f;
-
-			// move h vertically
-			data[4] = 0.0f;
-			dara[5] = clip_box[3];
-
-			// move -w horizontally
-			data[6] = -clip_box[2];
-			data[7] = 0.0f;
-
-			vgClearPath(temporary_path, VG_PATH_CAPABILITY_ALL);
-			vgAppendPathData(temporary_path, 5, cmds, data);
-
-			vgRenderToMask(temporary_path,
-				       VG_FILL_PATH,
-				       VG_INTERSECT_MASK);
 		}
 	}
 
 	void GnuVGCanvas::SVGDocument::use_state_on_top() {
+		++use_state_on_top_counter;
+		GKV_START_TIMER(use_state_on_top);
+
+		GKV_START_TIMER(regenerate_mask);
+		regenerate_mask();
+		GKV_STOP_TIMER(regenerate_mask);
+
 		if(state->fill_paint.type) {
 			state->paint_modes |= VG_FILL_PATH;
 			set_paint(&fill, state, &state->fill_paint, state->fill_opacity);
@@ -630,8 +682,6 @@ namespace KammoGUI {
 		vgSeti(VG_MATRIX_MODE, VG_MATRIX_GLYPH_USER_TO_SURFACE);
 		parent->loadFundamentalMatrix();
 		vgMultMatrix(state->matrix);
-
-		regenerate_mask();
 
 		vgSeti(VG_MATRIX_MODE, VG_MATRIX_PATH_USER_TO_SURFACE);
 		parent->loadFundamentalMatrix();
@@ -671,6 +721,10 @@ namespace KammoGUI {
 		}
 
 		state->configure_font();
+
+		vgSeti(VG_MASKING, VG_TRUE);
+
+		GKV_STOP_TIMER(use_state_on_top)
 	}
 
 /********************************************************
@@ -1055,11 +1109,11 @@ namespace KammoGUI {
 		context->length_to_pixel(width_l, &width);
 		context->length_to_pixel(height_l, &height);
 
-		context->has_clip_box = true;
-		state->clip_box[0] = (VGint)x;
-		state->clip_box[1] = (VGint)y;
-		state->clip_box[2] = (VGint)width;
-		state->clip_box[3] = (VGint)height;
+		state->has_clip_box = true;
+		state->clip_box[0] = x;
+		state->clip_box[1] = y;
+		state->clip_box[2] = width;
+		state->clip_box[3] = height;
 
 		return SVG_STATUS_SUCCESS;
 	}
@@ -1413,6 +1467,23 @@ extern "C" {
 	(JNIEnv *env, jclass jcl, jlong nativeID) {
 		KammoGUI::GnuVGCanvas *cnv =
 			(KammoGUI::GnuVGCanvas *)nativeID;
+		use_state_on_top_counter = 0;
+		GKV_START_TIMER(full_frame);
 		cnv->step(env);
+		GKV_STOP_TIMER(full_frame);
+#ifdef DEBUG_FRAMERATE
+		KAMOFLAGE_ERROR("----------------------------\n");
+		KAMOFLAGE_ERROR("time for use_state_on_top() : %f seconds (%d calls)\n",
+				GKV_USE_VALUE(use_state_on_top),
+				use_state_on_top_counter);
+		KAMOFLAGE_ERROR("time for regenerate_mask : %f seconds\n",
+				GKV_USE_VALUE(regenerate_mask));
+		KAMOFLAGE_ERROR("time for render_to_mask : %f seconds\n",
+				GKV_USE_VALUE(render_to_mask));
+		KAMOFLAGE_ERROR("time for clear_mask : %f seconds\n",
+				GKV_USE_VALUE(clear_mask));
+		KAMOFLAGE_ERROR("time for full frame : %f seconds\n",
+				GKV_USE_VALUE(full_frame));
+#endif
 	}
 }
