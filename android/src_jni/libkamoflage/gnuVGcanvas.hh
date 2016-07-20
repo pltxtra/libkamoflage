@@ -25,6 +25,62 @@
 
 namespace KammoGUI {
 
+	template <typename T>
+	class GvgVector {
+	private:
+		T* __data;
+		size_t total_size;
+		size_t in_use;
+		size_t iterate_head;
+
+		void reallocate(size_t new_size) {
+			total_size = new_size;
+			T* new_data = (T*)realloc(__data, total_size * sizeof(T));
+			__data = new_data;
+		}
+	public:
+		GvgVector() : total_size(4), in_use(0) {
+			__data = (T*)malloc(total_size * sizeof(T));
+		}
+
+		~GvgVector() {
+			free(__data);
+		}
+
+		void push_back(T value) {
+			if(total_size == in_use)
+				reallocate(2 * total_size);
+			__data[in_use++] = value;
+		}
+
+		void append(const T* data, size_t element_count) {
+			if(in_use + element_count >= total_size)
+				reallocate(2 * (in_use + element_count));
+			memcpy(&__data[in_use], data, element_count * sizeof(T));
+			in_use += element_count;
+		}
+
+		T* data() {
+			return __data;
+		}
+
+		T* head() {
+			return &__data[iterate_head];
+		}
+
+		void skip(size_t elements_to_skip) {
+			iterate_head += elements_to_skip;
+		}
+
+		void clear() {
+			in_use = 0;
+		}
+
+		size_t size() {
+			return in_use;
+		}
+	};
+
 	class GnuVGCanvas : public Widget {
 	public:
 		class SVGDocument {
@@ -57,7 +113,7 @@ namespace KammoGUI {
 				bool has_clip_box;
 				VGfloat clip_box[4]; // x,y,w,h
 
-				std::vector<VGfloat> dash;
+				GvgVector<VGfloat> dash;
 				VGfloat dash_phase;
 
 				std::string font_family;
@@ -69,8 +125,8 @@ namespace KammoGUI {
 
 				VGfloat viewport_width, viewport_height;
 
-				std::vector<VGubyte> pathSeg;
-				std::vector<VGfloat> pathData;
+				GvgVector<VGubyte> pathSeg;
+				GvgVector<VGfloat> pathData;
 
 				void init_by_copy(const State* original);
 				void init_fresh();

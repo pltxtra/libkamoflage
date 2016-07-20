@@ -44,8 +44,9 @@
 
 
 #include <time.h>
-#define GKV_FACT 0.99
+#define GKV_FACT 0.90
 
+#define DEBUG_FRAMERATE
 #ifdef DEBUG_FRAMERATE
 static double TimeSpecToSeconds(struct timespec* ts)
 {
@@ -59,10 +60,15 @@ static double TimeSpecToSeconds(struct timespec* ts)
 
 #define GKV_STOP_TIMER(NAME)	       \
 	(void) clock_gettime(CLOCK_MONOTONIC_RAW, &NAME##end);	\
-	NAME##_value_storage = (GKV_FACT * NAME##_value_storage) + (1.0 - GKV_FACT) * (TimeSpecToSeconds(&NAME##end) - TimeSpecToSeconds(&NAME##start));
+	NAME##_last_value = TimeSpecToSeconds(&NAME##end) - TimeSpecToSeconds(&NAME##start); \
+	NAME##_value_storage = (GKV_FACT * NAME##_value_storage) + (1.0 - GKV_FACT) * (NAME##_last_value); \
+	NAME##_counter++;
 
-#define GKV_TIMER_DECLARE(NAME) double NAME##_value_storage = 0.0
+#define GKV_TIMER_DECLARE(NAME) double NAME##_value_storage = 0.0, NAME##_last_value; int NAME##_counter;
 #define GKV_USE_VALUE(NAME) (NAME##_value_storage)
+#define GKV_USE_LAST_VALUE(NAME) (NAME##_last_value)
+#define GKV_USE_COUNTER(NAME) (NAME##_counter)
+#define GKV_RESET_COUNTER(NAME) NAME##_counter = 0
 
 #else
 
@@ -70,14 +76,19 @@ static double TimeSpecToSeconds(struct timespec* ts)
 #define GKV_STOP_TIMER(NAME)
 #define GKV_TIMER_DECLARE(NAME)
 #define GKV_USE_VALUE(NAME)
+#define GKV_USE_LAST_VALUE(NAME)
+#define GKV_USE_COUNTER(NAME)
+#define GKV_RESET_COUNTER(NAME)
+
 #endif
 
 GKV_TIMER_DECLARE(use_state_on_top);
 GKV_TIMER_DECLARE(full_frame);
 GKV_TIMER_DECLARE(regenerate_mask);
 GKV_TIMER_DECLARE(render_to_mask);
+GKV_TIMER_DECLARE(render_tempath);
+GKV_TIMER_DECLARE(render_path_cache);
 GKV_TIMER_DECLARE(clear_mask);
-int use_state_on_top_counter = 0;
 
 namespace KammoGUI {
 
@@ -109,6 +120,8 @@ namespace KammoGUI {
 			throw jException("Failed to allocate internal SVG structure",
 					 jException::sanity_error);
 		}
+
+		svg_enable_path_cache(svg);
 
 		// initialize engine
 
@@ -606,7 +619,7 @@ namespace KammoGUI {
 		vgMask(VG_INVALID_HANDLE,
 		       VG_FILL_MASK,
 		       0, 0,
-		       parent->window_width / 4, parent->window_height);
+		       parent->window_width, parent->window_height);
 
 		GKV_STOP_TIMER(clear_mask);
 
@@ -659,7 +672,6 @@ namespace KammoGUI {
 	}
 
 	void GnuVGCanvas::SVGDocument::use_state_on_top() {
-		++use_state_on_top_counter;
 		GKV_START_TIMER(use_state_on_top);
 
 		GKV_START_TIMER(regenerate_mask);
@@ -1232,9 +1244,11 @@ namespace KammoGUI {
 		context->length_to_pixel(x2, &_x1);
 		context->length_to_pixel(x2, &_y1);
 
+		GKV_START_TIMER(render_tempath);
 		vgClearPath(context->temporary_path, VG_PATH_CAPABILITY_ALL);
 		vguLine(context->temporary_path, _x0, _y0, _x1, _y1);
 		vgDrawPath(context->temporary_path, context->state->paint_modes);
+		GKV_STOP_TIMER(render_tempath);
 
 		return SVG_STATUS_SUCCESS;
 	}
@@ -1243,12 +1257,23 @@ namespace KammoGUI {
 		GnuVGCanvas::SVGDocument* context = (GnuVGCanvas::SVGDocument*)closure;
 		context->use_state_on_top();
 
-		vgClearPath(context->temporary_path, VG_PATH_CAPABILITY_ALL);
-		vgAppendPathData(context->temporary_path,
-				 context->state->pathSeg.size(),
-				 context->state->pathSeg.data(),
-				 context->state->pathData.data());
-		vgDrawPath(context->temporary_path, context->state->paint_modes);
+		VGPath this_path;
+		if((*path_cache) == NULL) {
+			this_path = vgCreatePath(VG_PATH_FORMAT_STANDARD, VG_PATH_DATATYPE_F,
+						 1,0,0,0, VG_PATH_CAPABILITY_ALL);
+
+			vgAppendPathData(this_path,
+					 context->state->pathSeg.size(),
+					 context->state->pathSeg.data(),
+					 context->state->pathData.data());
+
+			*path_cache = (void*)this_path;
+		} else
+			this_path = (VGPath)(*path_cache);
+
+		GKV_START_TIMER(render_path_cache);
+		vgDrawPath(this_path, context->state->paint_modes);
+		GKV_STOP_TIMER(render_path_cache);
 
 		return SVG_STATUS_SUCCESS;
 	}
@@ -1275,9 +1300,11 @@ namespace KammoGUI {
 					  _rx, _ry, 0, _cx - _rx, _cy,
 					  _rx, _ry, 0, _cx + _rx, _cy};
 
+		GKV_START_TIMER(render_tempath);
 		vgClearPath(context->temporary_path, VG_PATH_CAPABILITY_ALL);
 		vgAppendPathData(context->temporary_path, 4, segments, data);
 		vgDrawPath(context->temporary_path, context->state->paint_modes);
+		GKV_STOP_TIMER(render_tempath);
 
 		return SVG_STATUS_SUCCESS;
 	}
@@ -1300,6 +1327,7 @@ namespace KammoGUI {
 		context->length_to_pixel(rx, &_rx);
 		context->length_to_pixel(ry, &_ry);
 
+		GKV_START_TIMER(render_tempath);
 		vgClearPath(context->temporary_path, VG_PATH_CAPABILITY_ALL);
 
 		if(_rx == 0.0f && _ry == 0.0f) {
@@ -1322,8 +1350,8 @@ namespace KammoGUI {
 			vguRoundRect(context->temporary_path,
 				     _x, _y, _w, _h, _rx, _ry);
 		}
-
 		vgDrawPath(context->temporary_path, context->state->paint_modes);
+		GKV_STOP_TIMER(render_tempath);
 
 		return SVG_STATUS_SUCCESS;
 	}
@@ -1339,20 +1367,18 @@ namespace KammoGUI {
 		context->length_to_pixel(x, &_x);
 		context->length_to_pixel(y, &_y);
 
-		KAMOFLAGE_DEBUG("::render_text(%f, %f, %s)\n",
-				_x, _y, utf8);
 		vgSeti(VG_MATRIX_MODE, VG_MATRIX_GLYPH_USER_TO_SURFACE);
 
 		VGfloat mtrx[9];
 
 		vgGetMatrix(mtrx);
 		vgTranslate(_x, _y);
-
+#if 1
 		gnuVG_render_text(context->state->active_font,
 				  context->state->font_size,
 				  context->state->text_anchor,
 				  utf8, 0.0f, 0.0f);
-
+#endif
 		vgLoadMatrix(mtrx);
 		vgSeti(VG_MATRIX_MODE, VG_MATRIX_PATH_USER_TO_SURFACE);
 
@@ -1467,23 +1493,39 @@ extern "C" {
 	(JNIEnv *env, jclass jcl, jlong nativeID) {
 		KammoGUI::GnuVGCanvas *cnv =
 			(KammoGUI::GnuVGCanvas *)nativeID;
-		use_state_on_top_counter = 0;
+		GKV_RESET_COUNTER(use_state_on_top);
+		GKV_RESET_COUNTER(render_tempath);
+		GKV_RESET_COUNTER(render_path_cache);
 		GKV_START_TIMER(full_frame);
 		cnv->step(env);
 		GKV_STOP_TIMER(full_frame);
 #ifdef DEBUG_FRAMERATE
+		static int kount = 5;
+		if(--kount) {
+			return;
+		}
+		kount = 5;
+
 		KAMOFLAGE_ERROR("----------------------------\n");
 		KAMOFLAGE_ERROR("time for use_state_on_top() : %f seconds (%d calls)\n",
 				GKV_USE_VALUE(use_state_on_top),
-				use_state_on_top_counter);
+				GKV_USE_COUNTER(use_state_on_top));
+		KAMOFLAGE_ERROR("time for render temporary : %f seconds (%d calls)\n",
+				GKV_USE_VALUE(render_tempath),
+				GKV_USE_COUNTER(render_tempath));
+		KAMOFLAGE_ERROR("time for render path cache : %f seconds (%d calls)\n",
+				GKV_USE_VALUE(render_path_cache),
+				GKV_USE_COUNTER(render_path_cache));
 		KAMOFLAGE_ERROR("time for regenerate_mask : %f seconds\n",
 				GKV_USE_VALUE(regenerate_mask));
 		KAMOFLAGE_ERROR("time for render_to_mask : %f seconds\n",
 				GKV_USE_VALUE(render_to_mask));
 		KAMOFLAGE_ERROR("time for clear_mask : %f seconds\n",
 				GKV_USE_VALUE(clear_mask));
-		KAMOFLAGE_ERROR("time for full frame : %f seconds\n",
+		KAMOFLAGE_ERROR("avg time for full frame : %f seconds\n",
 				GKV_USE_VALUE(full_frame));
+		KAMOFLAGE_ERROR("last time for full frame : %f seconds\n",
+				GKV_USE_LAST_VALUE(full_frame));
 #endif
 	}
 }
