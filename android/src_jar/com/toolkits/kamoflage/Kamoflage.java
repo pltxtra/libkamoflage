@@ -1084,6 +1084,18 @@ public class Kamoflage
 		public void parse_gnuvg_canvas(Element canvas) {
 			initiate_internal();
 		}
+
+		public void start_animation() {
+			gnuVGView gvgv = (gnuVGView)internal;
+
+			gvgv.start_animation();
+		}
+
+		public void stop_animation() {
+			gnuVGView gvgv = (gnuVGView)internal;
+
+			gvgv.stop_animation();
+		}
 	}
 
 	static class CheckButton extends Widget implements View.OnClickListener {

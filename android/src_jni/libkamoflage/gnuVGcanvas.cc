@@ -42,61 +42,628 @@
 //#define __DO_KAMOFLAGE_DEBUG
 #include "kamoflage_debug.hh"
 
+#define ENABLE_GNUVG_PROFILER
+#include <VG/gnuVG_profiler.hh>
 
-#include <time.h>
-#define GKV_FACT 0.90
-
-#define DEBUG_FRAMERATE
-#ifdef DEBUG_FRAMERATE
-static double TimeSpecToSeconds(struct timespec* ts)
-{
-    return (double)ts->tv_sec + (double)ts->tv_nsec / 1000000000.0;
-}
-
-#define GKV_START_TIMER(NAME) \
-	struct timespec NAME##start; \
-	struct timespec NAME##end; \
-	(void) clock_gettime(CLOCK_MONOTONIC_RAW, &NAME##start);
-
-#define GKV_STOP_TIMER(NAME)	       \
-	(void) clock_gettime(CLOCK_MONOTONIC_RAW, &NAME##end);	\
-	NAME##_last_value = TimeSpecToSeconds(&NAME##end) - TimeSpecToSeconds(&NAME##start); \
-	NAME##_value_storage = (GKV_FACT * NAME##_value_storage) + (1.0 - GKV_FACT) * (NAME##_last_value); \
-	NAME##_counter++;
-
-#define GKV_TIMER_DECLARE(NAME) double NAME##_value_storage = 0.0, NAME##_last_value; int NAME##_counter;
-#define GKV_USE_VALUE(NAME) (NAME##_value_storage)
-#define GKV_USE_LAST_VALUE(NAME) (NAME##_last_value)
-#define GKV_USE_COUNTER(NAME) (NAME##_counter)
-#define GKV_RESET_COUNTER(NAME) NAME##_counter = 0
-
-#else
-
-#define GKV_START_TIMER(NAME)
-#define GKV_STOP_TIMER(NAME)
-#define GKV_TIMER_DECLARE(NAME)
-#define GKV_USE_VALUE(NAME)
-#define GKV_USE_LAST_VALUE(NAME)
-#define GKV_USE_COUNTER(NAME)
-#define GKV_RESET_COUNTER(NAME)
-
-#endif
-
-GKV_TIMER_DECLARE(use_state_on_top);
-GKV_TIMER_DECLARE(full_frame);
-GKV_TIMER_DECLARE(regenerate_mask);
-GKV_TIMER_DECLARE(render_to_mask);
-GKV_TIMER_DECLARE(render_tempath);
-GKV_TIMER_DECLARE(render_path_cache);
-GKV_TIMER_DECLARE(clear_mask);
+GNUVG_DECLARE_PROFILER_PROBE(full_frame);
+GNUVG_DECLARE_PROFILER_PROBE(use_state_on_top);
+GNUVG_DECLARE_PROFILER_PROBE(prepare_context);
+GNUVG_DECLARE_PROFILER_PROBE(regenerate_mask);
+GNUVG_DECLARE_PROFILER_PROBE(render_tempath);
+GNUVG_DECLARE_PROFILER_PROBE(render_text);
+GNUVG_DECLARE_PROFILER_PROBE(render_path_cache);
 
 namespace KammoGUI {
+
+/*************************
+ *
+ *    Exception classes
+ *
+ *************************/
+	GnuVGCanvas::NoSuchElementException::NoSuchElementException(const std::string &id)
+		: jException(id + " : element does not exist.", jException::sanity_error) {}
+	GnuVGCanvas::OperationFailedException::OperationFailedException()
+		: jException("GnuVGCanvas - operation failed.", jException::sanity_error) {}
+
+/*************************
+ *
+ *   MotionEvent implementation
+ *
+ *************************/
+	void GnuVGCanvas::MotionEvent::init(long _downTime,
+						    long _eventTime,
+						    motionEvent_t _action,
+						    int _pointerCount, int _actionIndex,
+						    float rawX, float rawY) {
+		down_time = _downTime;
+		event_time = _eventTime;
+		action = _action;
+		pointer_count = _pointerCount > 16 ? 16 : _pointerCount;
+		action_index = _actionIndex;
+		raw_x = rawX;
+		raw_y = rawY;
+	}
+	void GnuVGCanvas::MotionEvent::clone(const MotionEvent &source) {
+		init(source.get_down_time(),
+		     source.get_event_time(),
+		     source.get_action(),
+		     source.get_pointer_count(),
+		     source.get_action_index(),
+		     source.get_raw_x(),
+		     source.get_raw_y());
+
+		int k;
+		for(k = 0; k < source.get_pointer_count(); k++) {
+			init_pointer(k, source.get_pointer_id(k), source.get_x(k), source.get_y(k), source.get_pressure(k));
+		}
+	}
+
+	void GnuVGCanvas::MotionEvent::init_pointer(int index, int id, float x, float y, float pressure)  {
+		if(index >= pointer_count) return;
+		pointer_id[index] = id;
+		pointer_x[index] = x;
+		pointer_y[index] = y;
+		pointer_pressure[index] = pressure;
+	}
+
+	long GnuVGCanvas::MotionEvent::get_down_time() const {
+		return down_time;
+	}
+
+	long GnuVGCanvas::MotionEvent::get_event_time() const {
+		return event_time;
+	}
+
+	GnuVGCanvas::MotionEvent::motionEvent_t GnuVGCanvas::MotionEvent::get_action() const {
+		return action;
+	}
+
+	int GnuVGCanvas::MotionEvent::get_action_index() const {
+		return action_index;
+	}
+
+	float GnuVGCanvas::MotionEvent::get_x() const {
+		return pointer_x[action_index];
+	}
+
+	float GnuVGCanvas::MotionEvent::get_y() const {
+		return pointer_y[action_index];
+	}
+
+	float GnuVGCanvas::MotionEvent::get_pressure() const {
+		return pointer_pressure[action_index];
+	}
+
+	float GnuVGCanvas::MotionEvent::get_x(int index) const {
+		if(index >= pointer_count) return 0.0f;
+		return pointer_x[index];
+	}
+
+	float GnuVGCanvas::MotionEvent::get_y(int index) const {
+		if(index >= pointer_count) return 0.0f;
+		return pointer_y[index];
+	}
+
+	float GnuVGCanvas::MotionEvent::get_pressure(int index) const {
+		if(index >= pointer_count) return 0.0f;
+		return pointer_pressure[index];
+	}
+
+	float GnuVGCanvas::MotionEvent::get_raw_x() const {
+		return raw_x;
+	}
+
+	float GnuVGCanvas::MotionEvent::get_raw_y() const {
+		return raw_y;
+	}
+
+	int GnuVGCanvas::MotionEvent::get_pointer_count() const {
+		return pointer_count;
+	}
+
+	int GnuVGCanvas::MotionEvent::get_pointer_id(int index) const {
+		if(index >= pointer_count) return 0;
+		return pointer_id[index];
+	}
+
+/*************************
+ *
+ *   SVGMatrix class implementation
+ *
+ *************************/
+
+	GnuVGCanvas::SVGMatrix::SVGMatrix() : a(1.0), b(0.0), c(0.0), d(1.0), e(0.0), f(0.0) {
+	}
+
+	void GnuVGCanvas::SVGMatrix::init_identity() {
+		a = 1.0; c = 0.0; e = 0.0;
+		b = 0.0; d = 1.0; f = 0.0;
+	}
+
+
+	void GnuVGCanvas::SVGMatrix::translate(double x, double y) {
+		e += x;
+		f += y;
+	}
+
+	void GnuVGCanvas::SVGMatrix::scale(double x, double y) {
+		a *= x;
+		b *= y;
+		c *= x;
+		d *= y;
+		e *= x;
+		f *= y;
+	}
+
+	void GnuVGCanvas::SVGMatrix::rotate(double angle_in_radians) {
+		double u, v, x, y;
+		u = cos(angle_in_radians); v = -sin(angle_in_radians);
+		x = sin(angle_in_radians); y =  cos(angle_in_radians);
+
+		double A, B, C, D, E, F;
+		A = u * a + v * b; C = u * c + v * d; E = u * e + v * f;
+		B = x * a + y * b; D = x * c + y * d; F = x * e + y * f;
+
+		a = A; c = C; e = E;
+		b = B; d = D; f = F;
+	}
+
+	void GnuVGCanvas::SVGMatrix::multiply(const GnuVGCanvas::SVGMatrix &other) {
+		double t1, t2, t3, t4, t5, t6;
+
+		t1 = a * other.a + c * other.b;
+		t2 = b * other.a + d * other.b;
+
+		t3 = a * other.c + c * other.d;
+		t4 = b * other.c + d * other.d;
+
+		t5 = a * other.e + c * other.f + e;
+		t6 = b * other.e + d * other.f + f;
+
+		a = t1;
+		b = t2;
+		c = t3;
+		d = t4;
+		e = t5;
+		f = t6;
+	}
+
+/********************************************************
+ *
+ *           gnuVGcanvas::ElementReference
+ *
+ ********************************************************/
+
+	GnuVGCanvas::ElementReference::ElementReference() : source(NULL), element(NULL) {
+	}
+
+	GnuVGCanvas::ElementReference::ElementReference(SVGDocument *_source, const std::string &id) {
+		source = _source;
+
+		(void) _svg_fetch_element_by_id (source->svg, id.c_str(), &element);
+		if(element) {
+			(void) _svg_element_reference (element);
+		} else {
+			throw NoSuchElementException(id);
+		}
+		KAMOFLAGE_DEBUG("ElementReference::ElementReference(%p) %s -> ref count before: %d\n", element, id.c_str(), element->ref_count);
+	}
+
+	GnuVGCanvas::ElementReference::ElementReference(const ElementReference *sibling, const std::string &id) {
+		source = sibling->source;
+
+		(void) _svg_fetch_element_by_id (source->svg, id.c_str(), &element);
+		if(element) {
+			(void) _svg_element_reference (element);
+		} else {
+			throw NoSuchElementException(id);
+		}
+		KAMOFLAGE_DEBUG("ElementReference::ElementReference(%p) %s -> ref count before: %d\n", element, id.c_str(), element->ref_count);
+	}
+
+	GnuVGCanvas::ElementReference::ElementReference(const ElementReference *original) {
+		source = original->source;
+
+		element = original->element;
+		if(element) {
+			(void) _svg_element_reference (element);
+		} else {
+			throw NoSuchElementException("id unknown.");
+		}
+	}
+	GnuVGCanvas::ElementReference::ElementReference(const ElementReference &original) : ElementReference(&original) {}
+
+	GnuVGCanvas::ElementReference& GnuVGCanvas::ElementReference::operator=(
+		GnuVGCanvas::ElementReference&& a) {
+		// dereference previous content
+		dereference();
+
+		// create new content
+		source = std::move(a.source);
+		element = std::move(a.element);
+		event_handler = std::move(a.event_handler);
+		if(element) {
+			element->custom_data = this;
+			a.element = NULL;
+		}
+
+		KAMOFLAGE_DEBUG("ElementReference move operator = : element pointer %p\n", element);
+
+		return *this;
+	}
+
+	GnuVGCanvas::ElementReference::ElementReference(ElementReference &&original)
+		: source(0)
+		, element(0)
+	{
+		KAMOFLAGE_DEBUG("Move constructor.\n");
+		(*this) = std::move(original); // move
+	}
+
+	GnuVGCanvas::ElementReference::ElementReference(SVGDocument *_source) {
+		source = _source;
+
+		(void) _svg_fetch_element_by_id (source->svg, NULL, &element);
+		if(element) {
+			(void) _svg_element_reference (element);
+		} else {
+			throw NoSuchElementException("<root element>");
+		}
+	}
+
+	GnuVGCanvas::ElementReference::~ElementReference() {
+		KAMOFLAGE_DEBUG("ElementReference::~ElementReference() - %p\n", element);
+		if(element) {
+			if(element->custom_data == this) {
+				// the developer has enabled the event_handler for this ElementReference object
+				// now the developer is deleting the ElementReference
+				// if the element is not deleted the custom_data might be referenced. To make
+				// sure a non-valid pointer is not used, we set it to zero here.
+				// in the case the Element is left and an event is triggered, we can issue a proper
+				// error message for it by checking that this pointer is NULL
+				element->custom_data = NULL;
+			}
+		}
+		dereference();
+	}
+
+	void GnuVGCanvas::ElementReference::dereference() {
+		if(element) {
+			KAMOFLAGE_DEBUG("ElementReference::dereference() %p -> ref count before: %d\n", element, element->ref_count);
+			(void) _svg_element_dereference (element);
+			element = NULL;
+		}
+		source = NULL;
+	}
+
+	std::string GnuVGCanvas::ElementReference::get_id() {
+		return std::string(element->id);
+	}
+
+	std::string GnuVGCanvas::ElementReference::get_class() {
+		std::string class_string = "";
+		if(element->classes) {
+			int k = 0;
+			while(element->classes[k]) {
+				if(k)
+					class_string = class_string + ":";
+				class_string = class_string + element->classes[k];
+			}
+		}
+		return class_string;
+	}
+
+	void GnuVGCanvas::ElementReference::get_transform(SVGMatrix &matrix) {
+		svg_transform_t *transform = &(element->transform);
+
+		matrix.a = transform->m[0][0]; matrix.b = transform->m[0][1];
+		matrix.c = transform->m[1][0]; matrix.d = transform->m[1][1];
+		matrix.e = transform->m[2][0]; matrix.f = transform->m[2][1];
+
+	}
+
+	void* GnuVGCanvas::ElementReference::pointer() {
+		return element;
+	}
+
+	void GnuVGCanvas::ElementReference::set_transform(const SVGMatrix &matrix) {
+
+		_svg_transform_init_matrix(&(element->transform),
+					   matrix.a, matrix.b,
+					   matrix.c, matrix.d,
+					   matrix.e, matrix.f);
+	}
+
+	void GnuVGCanvas::ElementReference::set_xlink_href(const std::string &url) {
+	}
+
+	std::string GnuVGCanvas::ElementReference::get_text_content() {
+		const char *content = "";
+		if(element && element->type == SVG_ELEMENT_TYPE_TEXT) {
+			content = _svg_text_get_content(&(element->e.text));
+		}
+		return content;
+	}
+
+	void GnuVGCanvas::ElementReference::set_text_content(const std::string &content) {
+		if(element) {
+			if(element->type == SVG_ELEMENT_TYPE_TEXT) {
+				_svg_text_set_content(&(element->e.text), content.c_str());
+			}
+		}
+	}
+
+	void GnuVGCanvas::ElementReference::set_display(const std::string &value) {
+		if(element) {
+			_svg_element_set_display(element, value.c_str());
+		}
+	}
+	void GnuVGCanvas::ElementReference::set_style(const std::string &value) {
+		if(element) {
+			_svg_element_set_style(element, value.c_str());
+		}
+	}
+	void GnuVGCanvas::ElementReference::set_line_coords(float x1, float y1, float x2, float y2) {
+		if(element && element->type == SVG_ELEMENT_TYPE_LINE) {
+			element->e.line.x1.value = x1;
+			element->e.line.y1.value = y1;
+			element->e.line.x2.value = x2;
+			element->e.line.y2.value = y2;
+		}
+	}
+
+	void GnuVGCanvas::ElementReference::set_rect_coords(float x, float y, float width, float height) {
+		if(element && element->type == SVG_ELEMENT_TYPE_RECT) {
+			element->e.rect.x.value = x;
+			element->e.rect.y.value = y;
+			element->e.rect.width.value = width;
+			element->e.rect.height.value = height;
+		}
+	}
+
+	void GnuVGCanvas::ElementReference::set_event_handler(std::function<void(SVGDocument *source,
+										 ElementReference *e,
+										 const MotionEvent &event)> _event_handler) {
+		event_handler = _event_handler;
+		element->custom_data = this;
+
+		KAMOFLAGE_DEBUG("  set_event_handler for internal element %p\n", element);
+
+		svg_element_enable_events(element);
+	}
+
+	void GnuVGCanvas::ElementReference::trigger_event_handler(const GnuVGCanvas::MotionEvent &event) {
+		event_handler(source, this, event);
+	}
+
+	void GnuVGCanvas::ElementReference::add_svg_child(const std::string &svg_chunk) {
+		const char *txt = svg_chunk.c_str();
+		size_t len = svg_chunk.size();
+
+		svg_parse_buffer_and_inject(source->svg, element, txt, len);
+	}
+
+	GnuVGCanvas::ElementReference GnuVGCanvas::ElementReference::add_element_clone(const std::string &new_id,
+										       const GnuVGCanvas::ElementReference &element_to_clone) {
+		const char *nid = NULL;
+		if(new_id != "") // if the string is empty we want to use the NULL pointer instead
+			nid = new_id.c_str();
+		if(_svg_inject_clone(nid, element, element_to_clone.element) != SVG_STATUS_SUCCESS) {
+			throw OperationFailedException();
+		}
+		return GnuVGCanvas::ElementReference(&element_to_clone, new_id);
+	}
+
+	void GnuVGCanvas::ElementReference::get_viewport(SVGRect &rect) const {
+		_svg_element_get_viewport(element,
+					  &rect.x,
+					  &rect.y,
+					  &rect.width,
+					  &rect.height);
+	}
+
+	void GnuVGCanvas::ElementReference::get_boundingbox(SVGRect &rect) {
+		if(element) {
+			rect.x = element->bounding_box.left;
+			rect.y = element->bounding_box.top;
+			rect.width = element->bounding_box.right - element->bounding_box.left;
+			rect.height = element->bounding_box.bottom - element->bounding_box.top;
+		}
+	}
+
+	void GnuVGCanvas::ElementReference::drop_element() {
+		if(element)
+			(void) svg_drop_element(source->svg, element);
+		else {
+			KAMOFLAGE_ERROR("Trying to call ElementReference::drop_element() with unassigned ElementReference object.\n");
+		}
+	}
+
+	void GnuVGCanvas::ElementReference::debug_dump_render_tree() {
+		KAMOFLAGE_ERROR("---------- BEGIN debug_dump_render_tree()\n");
+		if(element) {
+			svg_element_debug_render_tree(element);
+		}
+		KAMOFLAGE_ERROR("---------- END   debug_dump_render_tree()\n");
+	}
+
+	void GnuVGCanvas::ElementReference::debug_dump_id_table() {
+		KAMOFLAGE_ERROR("---------- BEGIN debug_dump_id_table()\n");
+		if(element) {
+			svg_element_debug_id_table(element);
+		}
+		KAMOFLAGE_ERROR("---------- END   debug_dump_id_table()\n");
+	}
+
+	void GnuVGCanvas::ElementReference::debug_ref_count() {
+		if(element)
+			KAMOFLAGE_ERROR("          ---------------- ref count for (%p -> %p) : %d\n", this, element, element->ref_count);
+		else
+			KAMOFLAGE_ERROR("          ---------------- ref count for (%p -> %p) : null pointer, no count\n", this, element);
+	}
+
+	GnuVGCanvas::ElementReference GnuVGCanvas::ElementReference::find_child_by_class(const std::string &class_name) {
+		svg_element_t *new_element = NULL;
+
+		(void) _svg_fetch_element_by_class (source->svg, class_name.c_str(), element, &new_element);
+
+		if(!new_element) {
+			throw NoSuchElementException(std::string("class ") + class_name);
+		}
+
+		ElementReference destination;
+
+		destination.source = source;
+		destination.element = new_element;
+		(void) _svg_element_reference (new_element);
+
+		KAMOFLAGE_DEBUG("  found element of class %s -> element %p\n", class_name.c_str(), new_element);
+
+		return destination;
+	}
 
 /********************************************************
  *
  *           gnuVGcanvas::SVGDocument
  *
  ********************************************************/
+
+	void GnuVGCanvas::SVGDocument::get_canvas_size(int &width_in_pixels, int &height_in_pixels) {
+		width_in_pixels = parent->window_width;
+		height_in_pixels = parent->window_height;
+	}
+
+	void GnuVGCanvas::SVGDocument::get_canvas_size_inches(float &width_in_inches, float &height_in_inches) {
+		width_in_inches = parent->window_width_inches;
+		height_in_inches = parent->window_height_inches;
+	}
+
+	static inline double __fit_to_inches(double width_inches, double height_inches,
+					     double width_pixels, double height_pixels,
+					     double fit_width_inches, double fit_height_inches,
+					     double source_width_pixels, double source_height_pixels) {
+		// calculate the size of a finger in pixels
+		double pxl_per_inch_w = width_pixels / width_inches;
+		double pxl_per_inch_h = height_pixels / height_inches;
+
+		// force scaling to fit into predefined "fingers"-area
+		if(width_inches > fit_width_inches) width_inches = fit_width_inches;
+		if(height_inches > fit_height_inches) height_inches = fit_height_inches;
+
+		// calculate scaling factor
+		double target_w = (double)width_inches  * pxl_per_inch_w;
+		double target_h = (double)height_inches  * pxl_per_inch_h;
+
+		double scale_w = target_w / (double)source_width_pixels;
+		double scale_h = target_h / (double)source_height_pixels;
+
+		return scale_w < scale_h ? scale_w : scale_h;
+	}
+
+	double GnuVGCanvas::SVGDocument::fit_to_inches(const GnuVGCanvas::ElementReference *element,
+						       double inches_wide, double inches_tall) {
+		int canvas_w, canvas_h;
+		float canvas_w_inches, canvas_h_inches;
+		GnuVGCanvas::SVGRect document_size;
+
+		element->get_viewport(document_size);
+		get_canvas_size(canvas_w, canvas_h);
+		get_canvas_size_inches(canvas_w_inches, canvas_h_inches);
+
+		KAMOFLAGE_DEBUG("canvas(pxls):    %d, %d\n", canvas_w, canvas_h);
+		KAMOFLAGE_DEBUG("canvas(inch):    %f, %f\n",
+				canvas_w_inches, canvas_h_inches);
+		KAMOFLAGE_DEBUG("docume(pxls)     %f, %f\n",
+				document_size.width,
+				document_size.height);
+		KAMOFLAGE_DEBUG("fit ar(pxls)     %f, %f\n",
+				inches_wide,
+				inches_tall);
+
+		return __fit_to_inches(
+			(double)canvas_w_inches, (double)canvas_h_inches,
+			(double)canvas_w, (double)canvas_h,
+			inches_wide, inches_tall,
+			document_size.width, document_size.height);
+	}
+
+	void GnuVGCanvas::SVGDocument::process_active_animations() {
+		KAMOFLAGE_DEBUG("process animations: (%p) %p\n", this, &animations);
+		std::set<Animation *>::iterator k = animations.begin();
+		while(k != animations.end()) {
+			(*k)->new_time_tick();
+			if((*k)->has_finished()) {
+				delete (*k);
+				k = animations.erase(k);
+			} else {
+				k++;
+			}
+		}
+	}
+
+	void GnuVGCanvas::SVGDocument::process_touch_for_animations() {
+		std::set<Animation *>::iterator k = animations.begin();
+		while(k != animations.end()) {
+			(*k)->touch_event();
+			if((*k)->has_finished()) {
+				delete (*k);
+				k = animations.erase(k);
+			} else {
+				k++;
+			}
+		}
+	}
+
+	int GnuVGCanvas::SVGDocument::number_of_active_animations() {
+		return animations.size();
+	}
+
+	void GnuVGCanvas::SVGDocument::start_animation(KammoGUI::Animation *new_animation) {
+		if(new_animation != NULL) {
+			KAMOFLAGE_ERROR("start_new animation: %p (%p)\n", new_animation, &animations);
+			animations.insert(new_animation);
+			new_animation->start();
+		}
+
+		parent->queue_for_invalidate(parent);
+
+		pthread_t self = pthread_self();
+
+		GET_INTERNAL_CLASS(jc, parent->internal);
+		static jmethodID mid = __ENV->GetMethodID(
+			jc,
+			"start_animation","()V");
+
+		__ENV->CallVoidMethod(
+			parent->internal, mid
+			);
+	}
+
+	void GnuVGCanvas::SVGDocument::stop_animation(Animation *animation_to_stop) {
+		if(animation_to_stop) {
+			std::set<Animation *>::iterator k = animations.find(animation_to_stop);
+			if(k != animations.end()) {
+				if(!((*k)->has_finished())) {
+					(*k)->new_frame(1.0); // inform the animation that we've finished
+				}
+
+				delete (*k);
+				animations.erase(k);
+			}
+		} else {
+			for(auto animation : animations) {
+				if(!(animation->has_finished())) {
+					animation->new_frame(1.0); // inform the animation that we've finished
+				}
+				delete animation;
+			}
+			animations.clear();
+		}
+	}
+
+	float GnuVGCanvas::SVGDocument::get_preferred_dimension(dimension_t dimension) {
+		return 0.1f;
+	}
 
 	GnuVGCanvas::SVGDocument::SVGDocument(GnuVGCanvas* _parent)
 		: parent(_parent)
@@ -614,14 +1181,12 @@ namespace KammoGUI {
 	}
 
 	void GnuVGCanvas::SVGDocument::regenerate_mask() {
-		GKV_START_TIMER(clear_mask);
+		GNUVG_APPLY_PROFILER_GUARD(regenerate_mask);
 
 		vgMask(VG_INVALID_HANDLE,
 		       VG_FILL_MASK,
 		       0, 0,
 		       parent->window_width, parent->window_height);
-
-		GKV_STOP_TIMER(clear_mask);
 
 		vgSeti(VG_MATRIX_MODE, VG_MATRIX_PATH_USER_TO_SURFACE);
 
@@ -658,13 +1223,11 @@ namespace KammoGUI {
 				vgClearPath(temporary_path, VG_PATH_CAPABILITY_ALL);
 				vgAppendPathData(temporary_path, 5, cmds, data);
 
-				GKV_START_TIMER(render_to_mask);
 				vgRenderToMask(temporary_path,
 					       VG_FILL_PATH,
 					       //VG_FILL_MASK
 					       VG_INTERSECT_MASK
 					);
-				GKV_STOP_TIMER(render_to_mask);
 			}
 			parent->loadFundamentalMatrix();
 			vgMultMatrix(s->matrix);
@@ -672,11 +1235,8 @@ namespace KammoGUI {
 	}
 
 	void GnuVGCanvas::SVGDocument::use_state_on_top() {
-		GKV_START_TIMER(use_state_on_top);
-
-		GKV_START_TIMER(regenerate_mask);
+		GNUVG_APPLY_PROFILER_GUARD(use_state_on_top);
 		regenerate_mask();
-		GKV_STOP_TIMER(regenerate_mask);
 
 		if(state->fill_paint.type) {
 			state->paint_modes |= VG_FILL_PATH;
@@ -735,8 +1295,6 @@ namespace KammoGUI {
 		state->configure_font();
 
 		vgSeti(VG_MASKING, VG_TRUE);
-
-		GKV_STOP_TIMER(use_state_on_top)
 	}
 
 /********************************************************
@@ -1244,11 +1802,10 @@ namespace KammoGUI {
 		context->length_to_pixel(x2, &_x1);
 		context->length_to_pixel(x2, &_y1);
 
-		GKV_START_TIMER(render_tempath);
+		GNUVG_APPLY_PROFILER_GUARD(render_tempath);
 		vgClearPath(context->temporary_path, VG_PATH_CAPABILITY_ALL);
 		vguLine(context->temporary_path, _x0, _y0, _x1, _y1);
 		vgDrawPath(context->temporary_path, context->state->paint_modes);
-		GKV_STOP_TIMER(render_tempath);
 
 		return SVG_STATUS_SUCCESS;
 	}
@@ -1257,8 +1814,11 @@ namespace KammoGUI {
 		GnuVGCanvas::SVGDocument* context = (GnuVGCanvas::SVGDocument*)closure;
 		context->use_state_on_top();
 
+		GNUVG_APPLY_PROFILER_GUARD(render_path_cache);
+
 		VGPath this_path;
 		if((*path_cache) == NULL) {
+			KAMOFLAGE_ERROR("Creating new OpenVG path object...\n");
 			this_path = vgCreatePath(VG_PATH_FORMAT_STANDARD, VG_PATH_DATATYPE_F,
 						 1,0,0,0, VG_PATH_CAPABILITY_ALL);
 
@@ -1271,9 +1831,7 @@ namespace KammoGUI {
 		} else
 			this_path = (VGPath)(*path_cache);
 
-		GKV_START_TIMER(render_path_cache);
 		vgDrawPath(this_path, context->state->paint_modes);
-		GKV_STOP_TIMER(render_path_cache);
 
 		return SVG_STATUS_SUCCESS;
 	}
@@ -1300,11 +1858,10 @@ namespace KammoGUI {
 					  _rx, _ry, 0, _cx - _rx, _cy,
 					  _rx, _ry, 0, _cx + _rx, _cy};
 
-		GKV_START_TIMER(render_tempath);
+		GNUVG_APPLY_PROFILER_GUARD(render_tempath);
 		vgClearPath(context->temporary_path, VG_PATH_CAPABILITY_ALL);
 		vgAppendPathData(context->temporary_path, 4, segments, data);
 		vgDrawPath(context->temporary_path, context->state->paint_modes);
-		GKV_STOP_TIMER(render_tempath);
 
 		return SVG_STATUS_SUCCESS;
 	}
@@ -1327,7 +1884,7 @@ namespace KammoGUI {
 		context->length_to_pixel(rx, &_rx);
 		context->length_to_pixel(ry, &_ry);
 
-		GKV_START_TIMER(render_tempath);
+		GNUVG_APPLY_PROFILER_GUARD(render_tempath);
 		vgClearPath(context->temporary_path, VG_PATH_CAPABILITY_ALL);
 
 		if(_rx == 0.0f && _ry == 0.0f) {
@@ -1351,7 +1908,6 @@ namespace KammoGUI {
 				     _x, _y, _w, _h, _rx, _ry);
 		}
 		vgDrawPath(context->temporary_path, context->state->paint_modes);
-		GKV_STOP_TIMER(render_tempath);
 
 		return SVG_STATUS_SUCCESS;
 	}
@@ -1363,6 +1919,8 @@ namespace KammoGUI {
 		GnuVGCanvas::SVGDocument* context = (GnuVGCanvas::SVGDocument*)closure;
 		context->use_state_on_top();
 
+		GNUVG_APPLY_PROFILER_GUARD(render_text);
+
 		VGfloat _x, _y;
 		context->length_to_pixel(x, &_x);
 		context->length_to_pixel(y, &_y);
@@ -1373,12 +1931,12 @@ namespace KammoGUI {
 
 		vgGetMatrix(mtrx);
 		vgTranslate(_x, _y);
-#if 1
+
 		gnuVG_render_text(context->state->active_font,
 				  context->state->font_size,
 				  context->state->text_anchor,
 				  utf8, 0.0f, 0.0f);
-#endif
+
 		vgLoadMatrix(mtrx);
 		vgSeti(VG_MATRIX_MODE, VG_MATRIX_PATH_USER_TO_SURFACE);
 
@@ -1402,6 +1960,18 @@ namespace KammoGUI {
 
 /* get bounding box of last drawing, in pixels - returns 0 if bounding box is outside the visible clip, non-0 if inside the visible clip */
 	int GnuVGCanvas::SVGDocument::get_last_bounding_box(void *closure, svg_bounding_box_t *bbox) {
+		VGfloat sp[4];
+		gnuVG_get_bounding_box(sp);
+		bbox->left = 0.0f;//sp[0];
+		bbox->top = 0.0f;//sp[1];
+		bbox->right = 500.f;//sp[2];
+		bbox->bottom = 500.f;//sp[3];
+		/*
+		KAMOFLAGE_ERROR("::last_bounding(%f, %f, %f, %f)\n",
+				sp[0],
+				sp[1],
+				sp[2],
+				sp[3]);*/
 		return SVG_STATUS_SUCCESS;
 	}
 
@@ -1441,7 +2011,8 @@ namespace KammoGUI {
 		printGLString("Extensions", GL_EXTENSIONS);
 	}
 
-	void GnuVGCanvas::resize(JNIEnv *env, int width, int height) {
+	void GnuVGCanvas::resize(JNIEnv *env, int width, int height,
+				 float width_inches, float height_inches) {
 		KAMOFLAGE_DEBUG("GnuVGCanvas::resize(%d, %d)", width, height);
 
 		glViewport(0, 0, width, height);
@@ -1451,6 +2022,8 @@ namespace KammoGUI {
 		gnuVG_resize(width, height);
 		window_width = width;
 		window_height = height;
+		window_width_inches = width_inches;
+		window_height_inches = height_inches;
 
 		vgLoadIdentity();
 		vgTranslate(0.0f, window_height);
@@ -1459,16 +2032,141 @@ namespace KammoGUI {
 		vgLoadIdentity();
 	}
 
-	void GnuVGCanvas::step(JNIEnv *env) {
-		gnuVG_use_context(gnuVGctx);
+	void GnuVGCanvas::set_bg_color(double r, double g, double b) {
+		bg_r = (VGfloat)r;
+		bg_g = (VGfloat)g;
+		bg_b = (VGfloat)b;
+	}
 
-//		VGfloat clearColor[] = {1,1,1,1};
-		VGfloat clearColor[] = {1.0, 0.631373, 0.137254, 1.0};
-		vgSetfv(VG_CLEAR_COLOR, 4, clearColor);
-		vgClear(0, 0, window_width, window_height);
+	void GnuVGCanvas::step(JNIEnv *env) {
+		GNUVG_APPLY_PROFILER_GUARD(full_frame);
+		{
+			GNUVG_APPLY_PROFILER_GUARD(prepare_context);
+
+			gnuVG_use_context(gnuVGctx);
+
+			VGfloat clearColor[] = {bg_r, bg_g, bg_b, 1.0};
+			vgSetfv(VG_CLEAR_COLOR, 4, clearColor);
+			vgClear(0, 0, window_width, window_height);
+		}
+		int active_animations = 0;
+		for(auto document : documents) {
+			document->process_active_animations();
+			active_animations += document->number_of_active_animations();
+			document->on_render();
+			document->render();
+		}
+
+#if 0
+		if(active_animations == 0) {
+			KAMOFLAGE_ERROR(" will STOP animation now - no animations left.\n");
+
+			pthread_t self = pthread_self();
+
+			GET_INTERNAL_CLASS(jc, internal);
+			static jmethodID mid = __ENV->GetMethodID(
+				jc,
+				"stop_animation","()V");
+
+			__ENV->CallVoidMethod(
+				internal, mid
+				);
+		}
+#endif
+	}
+
+	void GnuVGCanvas::canvas_motion_event_init_event(
+		JNIEnv *env, long downTime, long eventTime,
+		int androidAction, int pointerCount, int actionIndex, float rawX, float rawY) {
+
+		MotionEvent::motionEvent_t action = MotionEvent::ACTION_CANCEL;
+
+		switch(androidAction) {
+		case 0x00000000:
+			action = MotionEvent::ACTION_DOWN;
+			break;
+		case 0x00000002:
+			action = MotionEvent::ACTION_MOVE;
+			break;
+		case 0x00000004:
+			action = MotionEvent::ACTION_OUTSIDE;
+			break;
+		case 0x00000005:
+			action = MotionEvent::ACTION_POINTER_DOWN;
+			break;
+		case 0x00000006:
+			action = MotionEvent::ACTION_POINTER_UP;
+			break;
+		case 0x00000001:
+			action = MotionEvent::ACTION_UP;
+			break;
+		}
+
+		m_evt.init(downTime, eventTime, action, pointerCount, actionIndex, rawX, rawY);
+	}
+
+	void GnuVGCanvas::canvas_motion_event_init_pointer(JNIEnv *env,
+							   int index, int id,
+							   float x, float y, float pressure) {
+		m_evt.init_pointer(index, id, x, y, pressure);
+	}
+
+	void GnuVGCanvas::canvas_motion_event(JNIEnv *env) {
+		KAMOFLAGE_DEBUG("    canvas_motion_event (%f, %f)\n", m_evt.get_x(), m_evt.get_y());
 
 		for(auto document : documents) {
-			document->render();
+			document->process_touch_for_animations();
+		}
+		switch(m_evt.get_action()) {
+		case GnuVGCanvas::MotionEvent::ACTION_DOWN:
+		{
+			svg_element_t *element = NULL;
+
+			KAMOFLAGE_DEBUG("Will scan docs..\n");
+			int k = documents.size() - 1;
+			for(; k >= 0 && element == NULL; k--) {
+				GnuVGCanvas::SVGDocument *document = (documents[k]);
+				element = svg_event_coords_match(document->svg,
+								 m_evt.get_x(), m_evt.get_y());
+				KAMOFLAGE_DEBUG("  element = %p\n", element);
+			}
+
+			if(element) {
+				KAMOFLAGE_DEBUG("   KAMOFLAGE action_down on element: %p (custom: %p)\n", element, element->custom_data);
+				if(element->custom_data == NULL) {
+					active_element = NULL;
+					KAMOFLAGE_ERROR("GnuVGCanvas::canvas_motion_event() - event handler is missing it's ElementReference - you probably deleted the ElementReference after calling set_event_handler(). Or maybe you used only a temporary ElementReference object.");
+				} else {
+					active_element = (ElementReference *)element->custom_data;
+				}
+			} else
+				active_element = NULL;
+		}
+		break;
+		case GnuVGCanvas::MotionEvent::ACTION_CANCEL:
+		case GnuVGCanvas::MotionEvent::ACTION_MOVE:
+		case GnuVGCanvas::MotionEvent::ACTION_OUTSIDE:
+		case GnuVGCanvas::MotionEvent::ACTION_POINTER_DOWN:
+		case GnuVGCanvas::MotionEvent::ACTION_POINTER_UP:
+		case GnuVGCanvas::MotionEvent::ACTION_UP:
+			break;
+		}
+
+		if(active_element) {
+			active_element->trigger_event_handler(m_evt);
+
+			switch(m_evt.get_action()) {
+			case GnuVGCanvas::MotionEvent::ACTION_POINTER_DOWN:
+			case GnuVGCanvas::MotionEvent::ACTION_MOVE:
+			case GnuVGCanvas::MotionEvent::ACTION_DOWN:
+			case GnuVGCanvas::MotionEvent::ACTION_OUTSIDE:
+			case GnuVGCanvas::MotionEvent::ACTION_POINTER_UP:
+				break;
+			case GnuVGCanvas::MotionEvent::ACTION_CANCEL:
+			case GnuVGCanvas::MotionEvent::ACTION_UP:
+				active_element = NULL;
+				break;
+			}
 		}
 	}
 
@@ -1483,49 +2181,57 @@ extern "C" {
 	}
 
 	JNIEXPORT void Java_com_toolkits_kamoflage_gnuVGView_resize
-	(JNIEnv *env, jclass jcl, jlong nativeID, jint width, jint height) {
+	(JNIEnv *env, jclass jcl, jlong nativeID, jint width, jint height,
+	 jfloat width_inches, jfloat height_inches) {
 		KammoGUI::GnuVGCanvas *cnv =
 			(KammoGUI::GnuVGCanvas *)nativeID;
-		cnv->resize(env, width, height);
+		cnv->resize(env, width, height, width_inches, height_inches);
 	}
 
 	JNIEXPORT void Java_com_toolkits_kamoflage_gnuVGView_step
 	(JNIEnv *env, jclass jcl, jlong nativeID) {
 		KammoGUI::GnuVGCanvas *cnv =
 			(KammoGUI::GnuVGCanvas *)nativeID;
-		GKV_RESET_COUNTER(use_state_on_top);
-		GKV_RESET_COUNTER(render_tempath);
-		GKV_RESET_COUNTER(render_path_cache);
-		GKV_START_TIMER(full_frame);
 		cnv->step(env);
-		GKV_STOP_TIMER(full_frame);
-#ifdef DEBUG_FRAMERATE
-		static int kount = 5;
-		if(--kount) {
-			return;
-		}
-		kount = 5;
 
-		KAMOFLAGE_ERROR("----------------------------\n");
-		KAMOFLAGE_ERROR("time for use_state_on_top() : %f seconds (%d calls)\n",
-				GKV_USE_VALUE(use_state_on_top),
-				GKV_USE_COUNTER(use_state_on_top));
-		KAMOFLAGE_ERROR("time for render temporary : %f seconds (%d calls)\n",
-				GKV_USE_VALUE(render_tempath),
-				GKV_USE_COUNTER(render_tempath));
-		KAMOFLAGE_ERROR("time for render path cache : %f seconds (%d calls)\n",
-				GKV_USE_VALUE(render_path_cache),
-				GKV_USE_COUNTER(render_path_cache));
-		KAMOFLAGE_ERROR("time for regenerate_mask : %f seconds\n",
-				GKV_USE_VALUE(regenerate_mask));
-		KAMOFLAGE_ERROR("time for render_to_mask : %f seconds\n",
-				GKV_USE_VALUE(render_to_mask));
-		KAMOFLAGE_ERROR("time for clear_mask : %f seconds\n",
-				GKV_USE_VALUE(clear_mask));
-		KAMOFLAGE_ERROR("avg time for full frame : %f seconds\n",
-				GKV_USE_VALUE(full_frame));
-		KAMOFLAGE_ERROR("last time for full frame : %f seconds\n",
-				GKV_USE_LAST_VALUE(full_frame));
-#endif
+		KAMOFLAGE_ERROR("\n");
+
+		double full_frame_time = GNUVG_GET_PROFILER_TIME(full_frame);
+		double full_frame_count = GNUVG_GET_PROFILER_COUNT(full_frame);
+		KAMOFLAGE_ERROR("------------\n");
+		KAMOFLAGE_ERROR("Time/Frame: %f\n",
+			full_frame_time / full_frame_count);
+
+		FOR_ALL_GNUVG_PROFILE_PROBES(
+			KAMOFLAGE_ERROR("%f (%5d): %s\n",
+					gvgp_time / full_frame_time,
+					gvgp_count,
+					gvgp_name)
+			);
+
+		KAMOFLAGE_ERROR("\n");
 	}
+
+	JNIEXPORT void Java_com_toolkits_kamoflage_gnuVGView_canvasMotionEventInitEvent
+	(JNIEnv *env, jclass jc, jlong nativeID, jlong downTime, jlong eventTime, jint androidAction, jint pointerCount, jint actionIndex, jfloat rawX, jfloat rawY) {
+		KammoGUI::GnuVGCanvas *cnv =
+			(KammoGUI::GnuVGCanvas *)nativeID;
+		cnv->canvas_motion_event_init_event(env, downTime, eventTime, androidAction, pointerCount, actionIndex, rawX, rawY);
+	}
+
+	JNIEXPORT void Java_com_toolkits_kamoflage_gnuVGView_canvasMotionEventInitPointer
+	(JNIEnv *env, jclass jc, jlong nativeID, jint index, jint id, jfloat x, jfloat y, jfloat pressure) {
+		KammoGUI::GnuVGCanvas *cnv =
+			(KammoGUI::GnuVGCanvas *)nativeID;
+		cnv->canvas_motion_event_init_pointer(env, index, id, x, y, pressure);
+	}
+
+	JNIEXPORT void Java_com_toolkits_kamoflage_gnuVGView_canvasMotionEvent
+	(JNIEnv *env, jclass jc, jlong nativeID) {
+		KammoGUI::GnuVGCanvas *cnv =
+			(KammoGUI::GnuVGCanvas *)nativeID;
+		cnv->canvas_motion_event(env);
+		KammoGUI::GnuVGCanvas::flush_invalidation_queue();
+	}
+
 }

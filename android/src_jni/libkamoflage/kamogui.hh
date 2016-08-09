@@ -297,6 +297,7 @@ namespace KammoGUI {
 		friend class Canvas;
 		friend class SVGCanvas;
 
+	public:
 		void get_now(float &progress);
 
 		void start();
@@ -304,7 +305,6 @@ namespace KammoGUI {
 		void new_time_tick();
 		void touch_event();
 
-	public:
 		// if you want this animation to run "forever" (or until you explicitly stop it)
 		// use duration = 0.0
 		Animation(float duration);
@@ -492,8 +492,8 @@ namespace KammoGUI {
 			 * pointInPreviousSpace = Matrix * pointInNewSpace
 			 *
 			 *               | a c e |   | Xn |
- 			 * (Xp, Yp, 1) = | b d f | * | Yn |
-                         *               | 0 0 1 |   | 1  |
+			 * (Xp, Yp, 1) = | b d f | * | Yn |
+			 *               | 0 0 1 |   | 1  |
 			 *
 			 *****************/
 			double a, b, c, d, e, f;

@@ -83,11 +83,172 @@ namespace KammoGUI {
 
 	class GnuVGCanvas : public Widget {
 	public:
+		enum dimension_t {
+			HORIZONTAL_DIMENSION, VERTICAL_DIMENSION
+		};
+
+		// class MotionEvent is modelled after the MotionEvent
+		// class available in Android and is semi-compatible
+		class MotionEvent {
+		public:
+			enum motionEvent_t {
+				ACTION_CANCEL,
+				ACTION_DOWN,
+				ACTION_MOVE,
+				ACTION_OUTSIDE,
+				ACTION_POINTER_DOWN,
+				ACTION_POINTER_UP,
+				ACTION_UP
+			};
+		private:
+			long down_time, event_time;
+			motionEvent_t action;
+			int action_index; // which index is responsible for the action
+			int pointer_count; // maximum 16
+			int pointer_id[16];
+			float pointer_x[16];
+			float pointer_y[16];
+			float pointer_pressure[16];
+			float raw_x, raw_y;
+
+		public:
+			void init(long downTime, long eventTime, motionEvent_t action, int pointerCount, int actionIndex, float rawX, float rawY);
+			void clone(const MotionEvent &source);
+
+			// each pointer will have the same id between different motion events, from the time they are POINTER_DOWN
+			// to the time they are POINTER_UP. However, because pointers may come and go (go DOWN or UP) the index
+			// between different events may change. (in one event you might have three pointers, while only two of them
+			// are left in the following..)
+			void init_pointer(int index, int id, float x, float y, float pressure);
+
+			long get_down_time() const;
+			long get_event_time()  const;
+
+			motionEvent_t get_action() const;
+			int get_action_index() const;
+
+			float get_x() const;
+			float get_y() const;
+			float get_pressure() const;
+			float get_x(int index) const;
+			float get_y(int index) const;
+			float get_pressure(int index) const;
+
+			float get_raw_x() const;
+			float get_raw_y() const;
+
+			int get_pointer_count() const;
+			int get_pointer_id(int index) const;
+		};
+
+		class SVGMatrix {
+		public:
+			SVGMatrix();
+
+			/*****************
+			 * pointInPreviousSpace = Matrix * pointInNewSpace
+			 *
+			 *               | a c e |   | Xn |
+			 * (Xp, Yp, 1) = | b d f | * | Yn |
+			 *               | 0 0 1 |   | 1  |
+			 *
+			 *****************/
+			double a, b, c, d, e, f;
+
+			void init_identity();
+			void translate(double x, double y);
+			void scale(double x, double y);
+			void rotate(double angle_in_radians);
+			void multiply(const SVGMatrix &other);
+		};
+
+		class SVGRect {
+		public:
+			double x, y, width, height;
+		};
+
+		class SVGDocument;
+
+		class ElementReference {
+		private:
+			SVGDocument *source;
+			mutable svg_element_t *element;
+			std::function<void(SVGDocument *source,
+					   ElementReference *e,
+					   const MotionEvent &event)> event_handler;
+			void trigger_event_handler(const MotionEvent &event);
+
+			friend class GnuVGCanvas;
+
+			void dereference();
+		public:
+			ElementReference();
+			/// get element reference by id
+			ElementReference(SVGDocument *source, const std::string &id);
+			/// get element reference by id, using the SVGDocument from the sibling element
+			ElementReference(const ElementReference *sibling, const std::string &id);
+			/// copy an existing ElementReference object
+			ElementReference(const ElementReference *original);
+			/// copy an existing ElementReference object
+			ElementReference(const ElementReference &original);
+			/// Explicit move constructor
+			ElementReference(ElementReference &&original);
+			/// get root element reference
+			ElementReference(SVGDocument *source);
+			~ElementReference();
+
+			std::string get_id();
+			std::string get_class();
+
+			void get_transform(SVGMatrix &matrix_output);
+			std::string get_text_content();
+
+			void* pointer();
+
+			void set_transform(const SVGMatrix &matrix);
+			void set_xlink_href(const std::string &url);
+			void set_text_content(const std::string &content);
+			void set_display(const std::string &value);
+			void set_style(const std::string &value);
+
+			void set_line_coords(float x1, float y1, float x2, float y2);
+			void set_rect_coords(float x, float y, float width, float height);
+
+			void set_event_handler(std::function<void(SVGDocument *source,
+								  ElementReference *e,
+								  const MotionEvent &event)> event_handler);
+
+			void add_svg_child(const std::string &svg_chunk);
+			ElementReference add_element_clone(const std::string &new_id, const ElementReference &element_to_clone);
+
+			void get_viewport(SVGRect &rect) const;
+			void get_boundingbox(SVGRect &rect); // return bounding box in canvas coordinates
+
+			void drop_element();
+
+			void debug_dump_render_tree();
+			void debug_dump_id_table();
+			void debug_ref_count();
+
+			ElementReference find_child_by_class(const std::string &class_name);
+
+			ElementReference& operator=(ElementReference&& a);
+		};
+
 		class SVGDocument {
 		private:
+			std::set<Animation *> animations;
 			GnuVGCanvas *parent;
 			svg_t *svg;
 			std::string file_name;
+
+			friend class ElementReference;
+			friend class GnuVGCanvas;
+
+			// called by GnuVGCanvas
+			void process_active_animations();
+			void process_touch_for_animations();
+			int number_of_active_animations();
 
 			struct State {
 				static std::map<std::string, VGFont> font_table;
@@ -291,21 +452,41 @@ namespace KammoGUI {
 			SVGDocument(const std::string& fname, GnuVGCanvas* parent);
 			SVGDocument(GnuVGCanvas* parent, const std::string& xml);
 
+			void get_canvas_size(int &width_in_pixels, int &height_in_pixels);
+			void get_canvas_size_inches(float &width_in_inches, float &height_in_inches);
+
+			// calculate a scaling factor to fit element into a specific
+			// size defined by "inches_wide" and "inches_tall"
+			double fit_to_inches(const GnuVGCanvas::ElementReference *element,
+					     double inches_wide, double inches_tall);
+
 		public:
 			void render();
 			GnuVGCanvas* get_parent();
 
 			virtual ~SVGDocument();
 
+			/// start to animate a new animation
+			void start_animation(Animation *new_animation);
+			/// stop an animation - or if NULL pointer, all animations - now
+			void stop_animation(Animation *animation_to_stop = NULL);
+
 			virtual void on_render() = 0;
 			virtual void on_resize();
+
+			virtual float get_preferred_dimension(dimension_t dimension); // return value measured in inches
 		};
 
 	private:
 		std::vector<SVGDocument *> documents;
 		VGint window_width, window_height;
+		VGfloat window_width_inches, window_height_inches;
 		VGHandle gnuVGctx = VG_INVALID_HANDLE;
 		VGfloat fundamentalMatrix[9];
+		VGfloat bg_r, bg_g, bg_b;
+
+		ElementReference *active_element; // if we have an active motion associated with an element
+		MotionEvent m_evt; // motion event object
 
 	public:
 		inline void loadFundamentalMatrix() {
@@ -317,18 +498,36 @@ namespace KammoGUI {
 			GnuVGStateStackEmpty(const std::string &id) : jException(id, jException::sanity_error) {}
 		};
 
+		void set_bg_color(double r, double g, double b);
+
 		/*************
 		 *
 		 * internal android callbacks - do not use them from any application code, it won't port...
 		 *
 		 *************/
 		void init(JNIEnv *env);
-		void resize(JNIEnv *env, int width, int height);
+		void resize(JNIEnv *env, int width, int height, float w_inches, float h_inches);
 		void step(JNIEnv *env);
+		void canvas_motion_event_init_event(
+			JNIEnv *env, long downTime, long eventTime, int androidAction, int pointerCount, int actionIndex,
+			float rawX, float rawY);
+		void canvas_motion_event_init_pointer(JNIEnv *env, int index, int id, float x, float y, float pressure);
+		void canvas_motion_event(JNIEnv *env);
+
 
 	public:
 		GnuVGCanvas(std::string id, jobject jobj);
 		~GnuVGCanvas();
+
+		class NoSuchElementException : public jException {
+		public:
+			NoSuchElementException(const std::string &id);
+		};
+
+		class OperationFailedException : public jException {
+		public:
+			OperationFailedException();
+		};
 	};
 };
 

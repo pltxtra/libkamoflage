@@ -138,6 +138,25 @@ class gnuVGView extends GLSurfaceView {
 		}
 	}
 
+	@Override
+	public boolean onTouchEvent(android.view.MotionEvent evt) {
+		invalidate();
+
+		canvasMotionEventInitEvent(nativeID, evt.getDownTime(), evt.getEventTime(), evt.getActionMasked(),
+					   evt.getPointerCount(), evt.getActionIndex(), evt.getRawX(), evt.getRawY());
+
+		Log.v("KAMOFLAGE", "action index: " + evt.getActionIndex());// + " (pointer id: " + evt.getPointerId() + ")");
+
+		int k;
+		for(k = 0; k < evt.getPointerCount(); k++) {
+			canvasMotionEventInitPointer(nativeID, k, evt.getPointerId(k), evt.getX(k), evt.getY(k),
+						     evt.getPressure(k));
+		}
+		canvasMotionEvent(nativeID);
+
+		return true;
+	}
+
 	private int measureSize(int wanting, int mspec) {
 		int size = android.view.View.MeasureSpec.getSize(mspec);
 		switch(android.view.View.MeasureSpec.getMode(mspec)) {
@@ -362,8 +381,25 @@ class gnuVGView extends GLSurfaceView {
 	}
 
 	public static native void init(long _nativeID);
-	public static native void resize(long _nativeID, int width, int height);
+	public static native void resize(long _nativeID, int width, int height,
+					 float w_inches, float h_inches);
 	public static native void step(long _nativeID);
+
+	public native static void canvasMotionEventInitEvent(
+		long nativeID, long downTime, long eventTime, int androidAction, int pointerCount, int actionIndex, float rawX, float rawY);
+	public native static void canvasMotionEventInitPointer(long nativeID, int index, int id, float x, float y, float pressure);
+	public native static void canvasMotionEvent(long nativeID);
+
+	private boolean do_animate = false; // not really used - for compat with SVGCanvasHelper
+
+	void start_animation() {
+		do_animate = true;
+		invalidate();
+	}
+
+	void stop_animation() {
+		do_animate = false;
+	}
 
 	private class Renderer implements GLSurfaceView.Renderer {
 		public Renderer() {
@@ -376,7 +412,12 @@ class gnuVGView extends GLSurfaceView {
 
 		public void onSurfaceChanged(GL10 gl, int width, int height) {
 			Log.w(TAG, "Renderer.onSurfaceChanged()");
-			resize(nativeID, width, height);
+			// calculate size in inches
+			float width_f = (float)width;
+			float height_f = (float)height;
+			width_f = width_f / Kamoflage.get_w_ppi();
+			height_f = height_f / Kamoflage.get_h_ppi();
+			resize(nativeID, width, height, width_f, height_f);
 		}
 
 		public void onSurfaceCreated(GL10 gl, EGLConfig config) {
