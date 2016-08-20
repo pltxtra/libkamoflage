@@ -48,7 +48,7 @@
 GNUVG_DECLARE_PROFILER_PROBE(full_frame);
 GNUVG_DECLARE_PROFILER_PROBE(use_state_on_top);
 GNUVG_DECLARE_PROFILER_PROBE(prepare_context);
-GNUVG_DECLARE_PROFILER_PROBE(regenerate_mask);
+GNUVG_DECLARE_PROFILER_PROBE(regenerate_scissors);
 GNUVG_DECLARE_PROFILER_PROBE(render_tempath);
 GNUVG_DECLARE_PROFILER_PROBE(render_text);
 GNUVG_DECLARE_PROFILER_PROBE(render_path_cache);
@@ -226,6 +226,43 @@ namespace KammoGUI {
 		d = t4;
 		e = t5;
 		f = t6;
+	}
+
+/********************************************************
+ *
+ *           gnuVGcanvas::SVGRect
+ *
+ ********************************************************/
+
+	// return if they intersected
+	void GnuVGCanvas::SVGRect::intersect_with(const SVGRect &other) {
+		// our coordinates
+		auto a_x1 = x;
+		auto a_x2 = x + width;
+		auto a_y1 = y;
+		auto a_y2 = y + height;
+
+		// other coordinates
+		auto b_x1 = other.x;
+		auto b_x2 = other.x + other.width;
+		auto b_y1 = other.y;
+		auto b_y2 = other.y + other.height;
+
+		// check if non-intersecting
+		if(b_x1 >= a_x2 || b_x2 <= a_x1 ||
+		   b_y1 >= a_y2 || b_y2 <= a_y1) {
+			x = y = width = height = 0.0;
+			return;
+		}
+
+		// compute intersection
+		auto f_x1 = a_x1 > b_x1 ? a_x1 : b_x1;
+		auto f_x2 = a_x2 > b_x2 ? b_x2 : a_x2;
+		auto f_y1 = a_y1 > b_y1 ? a_y1 : b_y1;
+		auto f_y2 = a_y2 > b_y2 ? b_y2 : a_y2;
+
+		x = f_x1; width = f_x2 - f_x1;
+		y = f_y1; height = f_y2 - f_y1;
 	}
 
 /********************************************************
@@ -1180,63 +1217,67 @@ namespace KammoGUI {
 
 	}
 
-	void GnuVGCanvas::SVGDocument::regenerate_mask() {
-		GNUVG_APPLY_PROFILER_GUARD(regenerate_mask);
+	void GnuVGCanvas::SVGDocument::regenerate_scissors() {
+		GNUVG_APPLY_PROFILER_GUARD(regenerate_scissors);
 
-		vgMask(VG_INVALID_HANDLE,
-		       VG_FILL_MASK,
-		       0, 0,
-		       parent->window_width, parent->window_height);
-
-		vgSeti(VG_MATRIX_MODE, VG_MATRIX_PATH_USER_TO_SURFACE);
-
-		static const VGubyte cmds[] = {VG_MOVE_TO_ABS,
-					       VG_LINE_TO_REL,
-					       VG_LINE_TO_REL,
-					       VG_LINE_TO_REL,
-					       VG_CLOSE_PATH
-		};
-		VGfloat data[8];
+		SVGRect final_clip(0, 0,
+				   parent->window_width,
+				   parent->window_height);
 
 		parent->loadFundamentalMatrix();
+		bool do_clipping = false;
 		for(auto s : state_stack) {
+			VGfloat m[9];
+
+			vgGetMatrix(m);
+
+			VGfloat x1, y1, x2, y2, w, h;
+
+			x1 = s->clip_box[0];
+			y1 = s->clip_box[1];
+			w = s->clip_box[2];
+			h = s->clip_box[3];
+			x2 = x1 + w; y2 = y1 + h;
+
+			VGfloat rx1, ry1, rx2, ry2;
+
+			rx1 = x1 * m[0] + y1 * m[3] + m[6];
+			ry1 = x1 * m[1] + y1 * m[4] + m[7];
+
+			rx2 = x2 * m[0] + y2 * m[3] + m[6];
+			ry2 = x2 * m[1] + y2 * m[4] + m[7];
+
+			SVGRect current_clip(
+				rx1,
+				ry1,
+				rx2 - rx1,
+				ry2 - ry1);
+			parent->loadFundamentalMatrix();
+			vgMultMatrix(s->matrix);
+
 			// if the current state doesn't
 			// set a clip box - we don't touch
 			// the mask - just proceed to next
 			if(s->has_clip_box) {
-				// start at x,y
-				data[0] = s->clip_box[0];
-				data[1] = s->clip_box[1];
-
-				// move w horizontally
-				data[2] = s->clip_box[2];
-				data[3] = 0.0f;
-
-				// move h vertically
-				data[4] = 0.0f;
-				data[5] = s->clip_box[3];
-
-				// move -w horizontally
-				data[6] = -s->clip_box[2];
-				data[7] = 0.0f;
-
-				vgClearPath(temporary_path, VG_PATH_CAPABILITY_ALL);
-				vgAppendPathData(temporary_path, 5, cmds, data);
-
-				vgRenderToMask(temporary_path,
-					       VG_FILL_PATH,
-					       //VG_FILL_MASK
-					       VG_INTERSECT_MASK
-					);
+				do_clipping = true;
+				final_clip.intersect_with(current_clip);
 			}
-			parent->loadFundamentalMatrix();
-			vgMultMatrix(s->matrix);
 		}
+
+		vgSeti(VG_SCISSORING, do_clipping ? VG_TRUE : VG_FALSE);
+
+		VGint coords[] = {
+			(VGint)final_clip.x,
+			(VGint)final_clip.y,
+			(VGint)final_clip.width,
+			(VGint)final_clip.height
+		};
+		vgSetiv(VG_SCISSOR_RECTS, 4, coords);
 	}
 
 	void GnuVGCanvas::SVGDocument::use_state_on_top() {
 		GNUVG_APPLY_PROFILER_GUARD(use_state_on_top);
-		regenerate_mask();
+		regenerate_scissors();
 
 		if(state->fill_paint.type) {
 			state->paint_modes |= VG_FILL_PATH;
@@ -1293,8 +1334,6 @@ namespace KammoGUI {
 		}
 
 		state->configure_font();
-
-		vgSeti(VG_MASKING, VG_TRUE);
 	}
 
 /********************************************************
@@ -2208,6 +2247,9 @@ extern "C" {
 					gvgp_count,
 					gvgp_name)
 			);
+
+		KAMOFLAGE_ERROR("Triangles rendered: %d\n",
+				GNUVG_READ_PROFILER_COUNTER(render_elements) / 3);
 
 		KAMOFLAGE_ERROR("\n");
 	}

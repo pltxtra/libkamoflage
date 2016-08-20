@@ -165,6 +165,19 @@ namespace KammoGUI {
 		class SVGRect {
 		public:
 			double x, y, width, height;
+
+			SVGRect(double _x, double _y,
+				double _width, double _height)
+				: x(_x)
+				, y(_y)
+				, width(_width)
+				, height(_height) {}
+
+			SVGRect()
+				: x(0.0), y(0.0), width(0.0), height(0.0) {}
+
+			// if non intersecting the result will be all zeroes
+			void intersect_with(const SVGRect &other);
 		};
 
 		class SVGDocument;
@@ -317,7 +330,7 @@ namespace KammoGUI {
 				svg_gradient_t* gradient);
 			void set_paint(VGPaint* vgpaint, State* state,
 				       const svg_paint_t* paint, VGfloat opacity);
-			void regenerate_mask();
+			void regenerate_scissors();
 			void length_to_pixel(svg_length_t *length, VGfloat* pixel);
 
 			void stack_push();
