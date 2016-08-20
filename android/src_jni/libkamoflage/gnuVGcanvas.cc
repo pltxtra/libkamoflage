@@ -2233,25 +2233,40 @@ extern "C" {
 			(KammoGUI::GnuVGCanvas *)nativeID;
 		cnv->step(env);
 
-		KAMOFLAGE_ERROR("\n");
+		static struct timespec last_time;
+		struct timespec this_time, time_difference;
 
-		double full_frame_time = GNUVG_GET_PROFILER_TIME(full_frame);
-		double full_frame_count = GNUVG_GET_PROFILER_COUNT(full_frame);
-		KAMOFLAGE_ERROR("------------\n");
-		KAMOFLAGE_ERROR("Time/Frame: %f\n",
-			full_frame_time / full_frame_count);
+		(void) clock_gettime(CLOCK_MONOTONIC_RAW, &this_time);
 
-		FOR_ALL_GNUVG_PROFILE_PROBES(
-			KAMOFLAGE_ERROR("%f (%5d): %s\n",
-					gvgp_time / full_frame_time,
-					gvgp_count,
-					gvgp_name)
-			);
+		time_difference.tv_sec = this_time.tv_sec - last_time.tv_sec;
+		time_difference.tv_nsec = this_time.tv_nsec - last_time.tv_nsec;
+		if(time_difference.tv_nsec < 0)
+			time_difference.tv_sec--;
 
-		KAMOFLAGE_ERROR("Triangles rendered: %d\n",
-				GNUVG_READ_PROFILER_COUNTER(render_elements) / 3);
+		if(time_difference.tv_sec >= 1) {
+			last_time = this_time;
 
-		KAMOFLAGE_ERROR("\n");
+			double full_frame_time = GNUVG_GET_PROFILER_TIME(full_frame);
+			double full_frame_count = GNUVG_GET_PROFILER_COUNT(full_frame);
+			KAMOFLAGE_ERROR("\n");
+
+			KAMOFLAGE_ERROR("------------\n");
+			KAMOFLAGE_ERROR("Time/Frame: %f\n",
+					full_frame_time / full_frame_count);
+
+			FOR_ALL_GNUVG_PROFILE_PROBES(
+				KAMOFLAGE_ERROR("%f (%5d): %s\n",
+						gvgp_time / full_frame_time,
+						gvgp_count,
+						gvgp_name)
+				);
+
+			KAMOFLAGE_ERROR("Triangles rendered: %d\n",
+					GNUVG_READ_PROFILER_COUNTER(render_elements) / 3);
+
+			KAMOFLAGE_ERROR("\n");
+		} else
+			(void) GNUVG_READ_PROFILER_COUNTER(render_elements);
 	}
 
 	JNIEXPORT void Java_com_toolkits_kamoflage_gnuVGView_canvasMotionEventInitEvent
