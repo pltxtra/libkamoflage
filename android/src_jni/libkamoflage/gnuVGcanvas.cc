@@ -903,6 +903,12 @@ namespace KammoGUI {
 		font_dirty = true;
 		active_font = VG_INVALID_HANDLE;
 
+		// bounding box is always cleared, even for a copy
+		bounding_box[0] = ~0;
+		bounding_box[1] = ~0;
+		bounding_box[2] = 0;
+		bounding_box[3] = 0;
+
 		pathSeg.clear();
 		pathData.clear();
 	}
@@ -951,8 +957,24 @@ namespace KammoGUI {
 		font_dirty = true;
 		active_font = VG_INVALID_HANDLE;
 
+		bounding_box[0] = ~0;
+		bounding_box[1] = ~0;
+		bounding_box[2] = 0;
+		bounding_box[3] = 0;
+
 		pathSeg.clear();
 		pathData.clear();
+	}
+
+	void GnuVGCanvas::SVGDocument::State::update_bounding_box(unsigned int *new_bbox) {
+		if(bounding_box[0] > new_bbox[0])
+			bounding_box[0] = new_bbox[0];
+		if(bounding_box[1] > new_bbox[1])
+			bounding_box[1] = new_bbox[1];
+		if(bounding_box[2] < new_bbox[2])
+			bounding_box[2] = new_bbox[2];
+		if(bounding_box[3] < new_bbox[3])
+			bounding_box[3] = new_bbox[3];
 	}
 
 	std::string GnuVGCanvas::SVGDocument::State::create_font_identifier(
@@ -1024,9 +1046,14 @@ namespace KammoGUI {
 		if(state_stack.size() <= 1)
 			throw GnuVGStateStackEmpty(parent->get_id());
 
-		state_unused.push(state_stack.back());
+		auto old_state = state_stack.back();
+
 		state_stack.pop_back();
 		state = state_stack.back();
+
+		state->update_bounding_box(old_state->bounding_box);
+
+		state_unused.push(old_state);
 	}
 
 	void GnuVGCanvas::SVGDocument::set_color_and_alpha(
@@ -1266,13 +1293,12 @@ namespace KammoGUI {
 
 		vgSeti(VG_SCISSORING, do_clipping ? VG_TRUE : VG_FALSE);
 
-		VGint coords[] = {
-			(VGint)final_clip.x,
-			(VGint)final_clip.y,
-			(VGint)final_clip.width,
-			(VGint)final_clip.height
-		};
-		vgSetiv(VG_SCISSOR_RECTS, 4, coords);
+		state->final_clip_coordinates[0] = (VGint)final_clip.x;
+		state->final_clip_coordinates[1] = (VGint)final_clip.y;
+		state->final_clip_coordinates[2] = (VGint)final_clip.width;
+		state->final_clip_coordinates[3] = (VGint)final_clip.height;
+
+		vgSetiv(VG_SCISSOR_RECTS, 4, state->final_clip_coordinates);
 	}
 
 	void GnuVGCanvas::SVGDocument::use_state_on_top() {
@@ -1832,6 +1858,8 @@ namespace KammoGUI {
 							   svg_length_t *y1,
 							   svg_length_t *x2,
 							   svg_length_t *y2) {
+		gnuVG_reset_bounding_box();
+
 		GnuVGCanvas::SVGDocument* context = (GnuVGCanvas::SVGDocument*)closure;
 		context->use_state_on_top();
 
@@ -1846,10 +1874,14 @@ namespace KammoGUI {
 		vguLine(context->temporary_path, _x0, _y0, _x1, _y1);
 		vgDrawPath(context->temporary_path, context->state->paint_modes);
 
+		context->fetch_gnuvg_boundingbox();
+
 		return SVG_STATUS_SUCCESS;
 	}
 
 	svg_status_t GnuVGCanvas::SVGDocument::render_path(void* closure, void **path_cache) {
+		gnuVG_reset_bounding_box();
+
 		GnuVGCanvas::SVGDocument* context = (GnuVGCanvas::SVGDocument*)closure;
 		context->use_state_on_top();
 
@@ -1872,6 +1904,8 @@ namespace KammoGUI {
 
 		vgDrawPath(this_path, context->state->paint_modes);
 
+		context->fetch_gnuvg_boundingbox();
+
 		return SVG_STATUS_SUCCESS;
 	}
 
@@ -1880,6 +1914,8 @@ namespace KammoGUI {
 							      svg_length_t *cy,
 							      svg_length_t *rx,
 							      svg_length_t *ry) {
+		gnuVG_reset_bounding_box();
+
 		GnuVGCanvas::SVGDocument* context = (GnuVGCanvas::SVGDocument*)closure;
 		context->use_state_on_top();
 
@@ -1902,6 +1938,8 @@ namespace KammoGUI {
 		vgAppendPathData(context->temporary_path, 4, segments, data);
 		vgDrawPath(context->temporary_path, context->state->paint_modes);
 
+		context->fetch_gnuvg_boundingbox();
+
 		return SVG_STATUS_SUCCESS;
 	}
 
@@ -1912,6 +1950,8 @@ namespace KammoGUI {
 							   svg_length_t *height,
 							   svg_length_t *rx,
 							   svg_length_t *ry) {
+		gnuVG_reset_bounding_box();
+
 		GnuVGCanvas::SVGDocument* context = (GnuVGCanvas::SVGDocument*)closure;
 		context->use_state_on_top();
 
@@ -1948,6 +1988,8 @@ namespace KammoGUI {
 		}
 		vgDrawPath(context->temporary_path, context->state->paint_modes);
 
+		context->fetch_gnuvg_boundingbox();
+
 		return SVG_STATUS_SUCCESS;
 	}
 
@@ -1955,6 +1997,8 @@ namespace KammoGUI {
 							   svg_length_t *x,
 							   svg_length_t *y,
 							   const char   *utf8) {
+		gnuVG_reset_bounding_box();
+
 		GnuVGCanvas::SVGDocument* context = (GnuVGCanvas::SVGDocument*)closure;
 		context->use_state_on_top();
 
@@ -1979,6 +2023,8 @@ namespace KammoGUI {
 		vgLoadMatrix(mtrx);
 		vgSeti(VG_MATRIX_MODE, VG_MATRIX_PATH_USER_TO_SURFACE);
 
+		context->fetch_gnuvg_boundingbox();
+
 		return SVG_STATUS_SUCCESS;
 	}
 
@@ -1990,28 +2036,62 @@ namespace KammoGUI {
 							    svg_length_t	 *y,
 							    svg_length_t	 *width,
 							    svg_length_t	 *height) {
+		gnuVG_reset_bounding_box();
+
 		GnuVGCanvas::SVGDocument* context = (GnuVGCanvas::SVGDocument*)closure;
 		context->use_state_on_top();
 
+		context->fetch_gnuvg_boundingbox();
+
 		return SVG_STATUS_SUCCESS;
+	}
+
+	void GnuVGCanvas::SVGDocument::fetch_gnuvg_boundingbox() {
+		VGfloat sp[4];
+		unsigned int bbx[4];
+
+		/* convert from gnuVG float to unsigned integers */
+		gnuVG_get_bounding_box(sp);
+		for(int k = 0; k < 4; k++)
+			bbx[k] = (unsigned int)sp[k];
+
+		state->update_bounding_box(bbx);
+	}
+
+	int GnuVGCanvas::SVGDocument::get_state_boundingbox(svg_bounding_box_t *bbox) {
+		bbox->left = state->bounding_box[0];
+		bbox->top = state->bounding_box[1];
+		bbox->right = state->bounding_box[2];
+		bbox->bottom = state->bounding_box[3];
+
+		/* check if outside the clip */
+		if(bbox->left > state->final_clip_coordinates[2])
+			return 0;
+		if(bbox->top > state->final_clip_coordinates[3])
+			return 0;
+		if(bbox->right < state->final_clip_coordinates[0])
+			return 0;
+		if(bbox->bottom < state->final_clip_coordinates[1])
+			return 0;
+
+		/* if not - limit by clip */
+		if(bbox->left < state->final_clip_coordinates[0])
+			bbox->left = state->final_clip_coordinates[0];
+		if(bbox->top < state->final_clip_coordinates[1])
+			bbox->top = state->final_clip_coordinates[1];
+		if(bbox->right > state->final_clip_coordinates[2])
+			bbox->right = state->final_clip_coordinates[2];
+		if(bbox->bottom > state->final_clip_coordinates[3])
+			bbox->bottom = state->final_clip_coordinates[3];
+
+		return 1;
 	}
 
 
 /* get bounding box of last drawing, in pixels - returns 0 if bounding box is outside the visible clip, non-0 if inside the visible clip */
 	int GnuVGCanvas::SVGDocument::get_last_bounding_box(void *closure, svg_bounding_box_t *bbox) {
-		VGfloat sp[4];
-		gnuVG_get_bounding_box(sp);
-		bbox->left = 0.0f;//sp[0];
-		bbox->top = 0.0f;//sp[1];
-		bbox->right = 500.f;//sp[2];
-		bbox->bottom = 500.f;//sp[3];
-		/*
-		KAMOFLAGE_ERROR("::last_bounding(%f, %f, %f, %f)\n",
-				sp[0],
-				sp[1],
-				sp[2],
-				sp[3]);*/
-		return SVG_STATUS_SUCCESS;
+		GnuVGCanvas::SVGDocument* context = (GnuVGCanvas::SVGDocument*)closure;
+		return context->get_state_boundingbox(bbox);
 	}
 
 
@@ -2227,12 +2307,7 @@ extern "C" {
 		cnv->resize(env, width, height, width_inches, height_inches);
 	}
 
-	JNIEXPORT void Java_com_toolkits_kamoflage_gnuVGView_step
-	(JNIEnv *env, jclass jcl, jlong nativeID) {
-		KammoGUI::GnuVGCanvas *cnv =
-			(KammoGUI::GnuVGCanvas *)nativeID;
-		cnv->step(env);
-
+	static void print_timing() {
 		static struct timespec last_time;
 		struct timespec this_time, time_difference;
 
@@ -2267,6 +2342,15 @@ extern "C" {
 			KAMOFLAGE_ERROR("\n");
 		} else
 			(void) GNUVG_READ_PROFILER_COUNTER(render_elements);
+	}
+
+	JNIEXPORT void Java_com_toolkits_kamoflage_gnuVGView_step
+	(JNIEnv *env, jclass jcl, jlong nativeID) {
+		KammoGUI::GnuVGCanvas *cnv =
+			(KammoGUI::GnuVGCanvas *)nativeID;
+		cnv->step(env);
+
+		print_timing();
 	}
 
 	JNIEXPORT void Java_com_toolkits_kamoflage_gnuVGView_canvasMotionEventInitEvent

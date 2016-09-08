@@ -28,7 +28,7 @@ public class MultisampleConfigChooser implements GLSurfaceView.EGLConfigChooser 
                 // Requires that setEGLContextClientVersion(2) is called on the view.
                 EGL10.EGL_RENDERABLE_TYPE, 4 /* EGL_OPENGL_ES2_BIT */,
                 EGL10.EGL_SAMPLE_BUFFERS, 1 /* true */,
-                EGL10.EGL_SAMPLES, 2,
+                EGL10.EGL_SAMPLES, 4,
                 EGL10.EGL_NONE
         };
 

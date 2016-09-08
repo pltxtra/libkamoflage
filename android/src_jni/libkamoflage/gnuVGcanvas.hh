@@ -286,6 +286,10 @@ namespace KammoGUI {
 
 				bool has_clip_box;
 				VGfloat clip_box[4]; // x,y,w,h
+				unsigned int bounding_box[4]; // left, top, right, bottom
+
+				// current clip coordinates
+				VGint final_clip_coordinates[4]; // left, top, right, bottom
 
 				GvgVector<VGfloat> dash;
 				VGfloat dash_phase;
@@ -304,6 +308,8 @@ namespace KammoGUI {
 
 				void init_by_copy(const State* original);
 				void init_fresh();
+
+				void update_bounding_box(unsigned int *new_bbox);
 
 				std::string create_font_identifier(const std::string& ffamily,
 								   gnuVGFontStyle fstyle);
@@ -336,6 +342,11 @@ namespace KammoGUI {
 			void stack_push();
 			void stack_pop();
 			void use_state_on_top();
+
+			void fetch_gnuvg_boundingbox();
+
+			// return 0 if bounding box is outside the visible clip
+			int get_state_boundingbox(svg_bounding_box_t *bbox);
 
 			static svg_status_t begin_group(void* closure, double opacity);
 			static svg_status_t begin_element(void* closure, void *path_cache);
