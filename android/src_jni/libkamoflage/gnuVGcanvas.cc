@@ -26,7 +26,6 @@
 #include <GLES2/gl2ext.h>
 
 #include <VG/openvg.h>
-#include <VG/vgext.h>
 #include <VG/vgu.h>
 
 #include <stdio.h>
@@ -71,10 +70,10 @@ namespace KammoGUI {
  *
  *************************/
 	void GnuVGCanvas::MotionEvent::init(long _downTime,
-						    long _eventTime,
-						    motionEvent_t _action,
-						    int _pointerCount, int _actionIndex,
-						    float rawX, float rawY) {
+					    long _eventTime,
+					    motionEvent_t _action,
+					    int _pointerCount, int _actionIndex,
+					    float rawX, float rawY) {
 		down_time = _downTime;
 		event_time = _eventTime;
 		action = _action;
@@ -705,7 +704,7 @@ namespace KammoGUI {
 	GnuVGCanvas::SVGDocument::SVGDocument(GnuVGCanvas* _parent)
 		: parent(_parent)
 	{
-		gnuVG_use_context(parent->gnuVGctx);
+		gnuvgUseContext(parent->gnuVGctx);
 
 		stack_push(); // push initial state
 
@@ -993,7 +992,7 @@ namespace KammoGUI {
 		auto font_i = font_table.find(font_identifier);
 		if(font_i == font_table.end()) {
 			KAMOFLAGE_DEBUG("Will try and load font: %s\n", ffamily.c_str());
-			return_font = gnuVG_load_font(ffamily.c_str(), fstyle);
+			return_font = gnuvgLoadFont(ffamily.c_str(), fstyle);
 			if(return_font != VG_INVALID_HANDLE) {
 				KAMOFLAGE_DEBUG("           ---- font load SUCCESS! %p\n", return_font);
 				font_table[font_identifier] = return_font;
@@ -1104,7 +1103,7 @@ namespace KammoGUI {
 			exit(0);
 
 			VGfloat sp_ep[4];
-			gnuVG_get_bounding_box(sp_ep);
+			gnuvgGetBoundingBox(sp_ep);
 
 			VGfloat w = sp_ep[2] - sp_ep[0];
 			VGfloat h = sp_ep[3] - sp_ep[1];
@@ -1858,7 +1857,7 @@ namespace KammoGUI {
 							   svg_length_t *y1,
 							   svg_length_t *x2,
 							   svg_length_t *y2) {
-		gnuVG_reset_bounding_box();
+		gnuvgResetBoundingBox();
 
 		GnuVGCanvas::SVGDocument* context = (GnuVGCanvas::SVGDocument*)closure;
 		context->use_state_on_top();
@@ -1880,7 +1879,7 @@ namespace KammoGUI {
 	}
 
 	svg_status_t GnuVGCanvas::SVGDocument::render_path(void* closure, void **path_cache) {
-		gnuVG_reset_bounding_box();
+		gnuvgResetBoundingBox();
 
 		GnuVGCanvas::SVGDocument* context = (GnuVGCanvas::SVGDocument*)closure;
 		context->use_state_on_top();
@@ -1914,7 +1913,7 @@ namespace KammoGUI {
 							      svg_length_t *cy,
 							      svg_length_t *rx,
 							      svg_length_t *ry) {
-		gnuVG_reset_bounding_box();
+		gnuvgResetBoundingBox();
 
 		GnuVGCanvas::SVGDocument* context = (GnuVGCanvas::SVGDocument*)closure;
 		context->use_state_on_top();
@@ -1950,7 +1949,7 @@ namespace KammoGUI {
 							   svg_length_t *height,
 							   svg_length_t *rx,
 							   svg_length_t *ry) {
-		gnuVG_reset_bounding_box();
+		gnuvgResetBoundingBox();
 
 		GnuVGCanvas::SVGDocument* context = (GnuVGCanvas::SVGDocument*)closure;
 		context->use_state_on_top();
@@ -1997,7 +1996,7 @@ namespace KammoGUI {
 							   svg_length_t *x,
 							   svg_length_t *y,
 							   const char   *utf8) {
-		gnuVG_reset_bounding_box();
+		gnuvgResetBoundingBox();
 
 		GnuVGCanvas::SVGDocument* context = (GnuVGCanvas::SVGDocument*)closure;
 		context->use_state_on_top();
@@ -2015,10 +2014,10 @@ namespace KammoGUI {
 		vgGetMatrix(mtrx);
 		vgTranslate(_x, _y);
 
-		gnuVG_render_text(context->state->active_font,
-				  context->state->font_size,
-				  context->state->text_anchor,
-				  utf8, 0.0f, 0.0f);
+		gnuvgRenderText(context->state->active_font,
+				context->state->font_size,
+				context->state->text_anchor,
+				utf8, 0.0f, 0.0f);
 
 		vgLoadMatrix(mtrx);
 		vgSeti(VG_MATRIX_MODE, VG_MATRIX_PATH_USER_TO_SURFACE);
@@ -2036,7 +2035,7 @@ namespace KammoGUI {
 							    svg_length_t	 *y,
 							    svg_length_t	 *width,
 							    svg_length_t	 *height) {
-		gnuVG_reset_bounding_box();
+		gnuvgResetBoundingBox();
 
 		GnuVGCanvas::SVGDocument* context = (GnuVGCanvas::SVGDocument*)closure;
 		context->use_state_on_top();
@@ -2051,7 +2050,7 @@ namespace KammoGUI {
 		unsigned int bbx[4];
 
 		/* convert from gnuVG float to unsigned integers */
-		gnuVG_get_bounding_box(sp);
+		gnuvgGetBoundingBox(sp);
 		for(int k = 0; k < 4; k++)
 			bbx[k] = (unsigned int)sp[k];
 
@@ -2118,7 +2117,7 @@ namespace KammoGUI {
 
 	GnuVGCanvas::GnuVGCanvas(std::string _id, jobject jobj) :
 		Widget(_id, jobj) {
-		gnuVGctx = gnuVG_create_context();
+		gnuVGctx = gnuvgCreateContext();
 
 		KAMOFLAGE_DEBUG("GnuVGCanvas::GnuVGCanvas(%s)\n", _id.c_str());
 	}
@@ -2140,8 +2139,8 @@ namespace KammoGUI {
 		glViewport(0, 0, width, height);
 		checkGlError("glViewport");
 
-		gnuVG_use_context(gnuVGctx);
-		gnuVG_resize(width, height);
+		gnuvgUseContext(gnuVGctx);
+		gnuvgResize(width, height);
 		window_width = width;
 		window_height = height;
 		window_width_inches = width_inches;
@@ -2165,7 +2164,7 @@ namespace KammoGUI {
 		{
 			GNUVG_APPLY_PROFILER_GUARD(prepare_context);
 
-			gnuVG_use_context(gnuVGctx);
+			gnuvgUseContext(gnuVGctx);
 
 			VGfloat clearColor[] = {bg_r, bg_g, bg_b, 1.0};
 			vgSetfv(VG_CLEAR_COLOR, 4, clearColor);

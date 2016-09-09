@@ -23,6 +23,8 @@
 
 #include "kamogui.hh"
 
+#include <VG/openvg.h>
+
 namespace KammoGUI {
 
 	template <typename T>

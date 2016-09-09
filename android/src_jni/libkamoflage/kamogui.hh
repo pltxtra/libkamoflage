@@ -50,9 +50,6 @@
 #include <GLES2/gl2.h>
 #include <GLES2/gl2ext.h>
 
-#include <VG/openvg.h>
-#include <VG/vgext.h>
-
 extern JavaVM *__g_jvm;
 
 void __setup_env_for_thread(JNIEnv *env);
