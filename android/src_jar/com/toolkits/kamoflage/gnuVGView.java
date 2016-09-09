@@ -145,8 +145,6 @@ class gnuVGView extends GLSurfaceView {
 		canvasMotionEventInitEvent(nativeID, evt.getDownTime(), evt.getEventTime(), evt.getActionMasked(),
 					   evt.getPointerCount(), evt.getActionIndex(), evt.getRawX(), evt.getRawY());
 
-		Log.v("KAMOFLAGE", "action index: " + evt.getActionIndex());// + " (pointer id: " + evt.getPointerId() + ")");
-
 		int k;
 		for(k = 0; k < evt.getPointerCount(); k++) {
 			canvasMotionEventInitPointer(nativeID, k, evt.getPointerId(k), evt.getX(k), evt.getY(k),

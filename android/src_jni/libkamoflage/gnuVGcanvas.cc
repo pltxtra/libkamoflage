@@ -2059,30 +2059,33 @@ namespace KammoGUI {
 	}
 
 	int GnuVGCanvas::SVGDocument::get_state_boundingbox(svg_bounding_box_t *bbox) {
-		bbox->left = state->bounding_box[0];
-		bbox->top = state->bounding_box[1];
-		bbox->right = state->bounding_box[2];
-		bbox->bottom = state->bounding_box[3];
+		auto left = (VGint)state->bounding_box[0];
+		auto top = (VGint)state->bounding_box[1];
+		auto right = (VGint)state->bounding_box[2];
+		auto bottom = (VGint)state->bounding_box[3];
 
 		/* check if outside the clip */
-		if(bbox->left > state->final_clip_coordinates[2])
+		if(left > state->final_clip_coordinates[2])
 			return 0;
-		if(bbox->top > state->final_clip_coordinates[3])
+		if(top > state->final_clip_coordinates[3])
 			return 0;
-		if(bbox->right < state->final_clip_coordinates[0])
+		if(right < state->final_clip_coordinates[0])
 			return 0;
-		if(bbox->bottom < state->final_clip_coordinates[1])
+		if(bottom < state->final_clip_coordinates[1])
 			return 0;
 
 		/* if not - limit by clip */
-		if(bbox->left < state->final_clip_coordinates[0])
-			bbox->left = state->final_clip_coordinates[0];
-		if(bbox->top < state->final_clip_coordinates[1])
-			bbox->top = state->final_clip_coordinates[1];
-		if(bbox->right > state->final_clip_coordinates[2])
-			bbox->right = state->final_clip_coordinates[2];
-		if(bbox->bottom > state->final_clip_coordinates[3])
-			bbox->bottom = state->final_clip_coordinates[3];
+		if(left < state->final_clip_coordinates[0])
+			left = state->final_clip_coordinates[0];
+		if(top < state->final_clip_coordinates[1])
+			top = state->final_clip_coordinates[1];
+		if(right > state->final_clip_coordinates[2])
+			right = state->final_clip_coordinates[2];
+		if(bottom > state->final_clip_coordinates[3])
+			bottom = state->final_clip_coordinates[3];
+
+		bbox->left = (unsigned int)left; bbox->top = (unsigned int)top;
+		bbox->right = (unsigned int)right; bbox->bottom = (unsigned int)bottom;
 
 		return 1;
 	}
