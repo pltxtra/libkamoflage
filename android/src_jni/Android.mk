@@ -23,7 +23,7 @@ include $(PREBUILT_SHARED_LIBRARY)
 
 include $(CLEAR_VARS)
 LOCAL_MODULE := libgnuVG
-LOCAL_SRC_FILES := ../gnuVGdroid_tiger/prereqs/lib/libgnuVG.so
+LOCAL_SRC_FILES := ../../prereqs/lib/libgnuVG.so
 include $(PREBUILT_SHARED_LIBRARY)
 
 include $(CLEAR_VARS)
@@ -38,7 +38,7 @@ LOCAL_CFLAGS += \
 -I../libsvgandroid/src_jni/ \
 -I../libsvgandroid/src_jni/libsvg \
 -I../libsvgandroid/prereqs/include/ \
--I../gnuVGdroid_tiger/prereqs/include/gnuVG \
+-I../../prereqs/include/gnuVG \
 -Wall
 
 LOCAL_CPPFLAGS += -std=c++11

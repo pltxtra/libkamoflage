@@ -13,10 +13,57 @@ function usage {
     echo "         : prints this help text"
     echo "$0 --help"
     echo "         : prints this help text"
-    echo "$0 --ndk-path <path> --sdk-path <path> --libsvgandroid-path <path> --target-platform <android target platform>"
-    echo "         : create a Makefile"
+    echo "$0 --ndk-path <path> --sdk-path <path> --libsvgandroid-path <path> --target-platform <android target platform> [--bootstrap]"
+    echo "         : create a Makefile, --bootstrap will automatically download and compile prerequisite libraries"
     echo
     echo
+}
+
+function run_checksum {
+    echo $1 | sha256sum -c
+    if [ $? -ne 0 ]; then
+	echo Checksum failed. Abort.
+	exit 1
+    fi
+    echo Checksum was confirmed.
+}
+
+function do_fail {
+    echo
+    echo "Failed to build $1."
+    echo "Abort."
+    echo
+    exit 1
+}
+
+function do_compile {
+    ./configure $2 --prefix=$TARGET_DIR --host=arm-linux
+    if [ $? -ne 0 ]; then
+	do_fail $1
+    fi
+    make
+    if [ $? -ne 0 ]; then
+	do_fail $1
+    fi
+    make install
+    if [ $? -ne 0 ]; then
+	do_fail $1
+    fi
+}
+
+function do_gnuvg {
+    git clone https://github.com/pltxtra/gnuVG.git
+    pushd gnuVG
+    ./bootstrap.sh
+    do_compile gnuVG "--enable-shared=yes"
+    popd
+}
+
+function do_freetype {
+    tar -xf freetype-2.7.tar.bz2
+    pushd freetype-2.7
+    do_compile freetype "--enable-shared=no --with-png=no --with-zlib=no --with-harfbuzz=no"
+    popd
 }
 
 function findsmallest {
@@ -31,6 +78,40 @@ function findsmallest {
     done
 
     echo "android-$RESULT"
+}
+
+function prepare_toolchain {
+    mkdir -p prereqs
+    pushd prereqs
+
+    $NDK_PATH/build/tools/make-standalone-toolchain.sh --platform=$NDK_PLATFORM --toolchain=arm-linux-androideabi-4.9 --install-dir=$PWD/standalone-toolchain-4.9
+
+    popd
+}
+
+function do_bootstrap {
+    rm -rf prereqs
+
+    echo "Preparing toolchain - pwd: `pwd`"
+    prepare_toolchain
+
+    pushd prereqs
+
+    export PATH=$PWD/standalone-toolchain-4.9/bin:$PATH
+    export CC=arm-linux-androideabi-gcc
+    export CXX=arm-linux-androideabi-g++
+    export TARGET_DIR=$PWD
+
+    echo $PATH
+    echo `which $CXX`
+
+    wget http://download.savannah.gnu.org/releases/freetype/freetype-2.7.tar.bz2
+    run_checksum "d6a451f5b754857d2aa3964fd4473f8bc5c64e879b24516d780fb26bec7f7d48  freetype-2.7.tar.bz2"
+
+    do_freetype
+    do_gnuvg
+
+    popd
 }
 
 function do_init {
@@ -170,6 +251,18 @@ TARGET_PLATFORM=$8
 
 NDK_PLATFORM=$(findsmallest $TARGET_PLATFORM)
 echo "Found nearest compatible NDK platform $NDK_PLATFORM (requested: $TARGET_PLATFORM)"
+
+if [ "$#" -eq 9 ]; then
+    if [ "$9" != "--bootstrap" ]; then
+	echo "Wrong ninth argument."
+	usage
+	exit 1
+    fi
+
+    do_bootstrap
+else
+    prepare_toolchain
+fi
 
 do_init
 

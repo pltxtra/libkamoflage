@@ -229,6 +229,15 @@ namespace KammoGUI {
 
 /********************************************************
  *
+ *           gnuVGFilter
+ *
+ ********************************************************/
+
+	void GnuVGFilter::execute(VGImage sourceGraphic, VGImage backgroundImage) {
+	}
+
+/********************************************************
+ *
  *           gnuVGcanvas::SVGRect
  *
  ********************************************************/
@@ -910,6 +919,11 @@ namespace KammoGUI {
 
 		pathSeg.clear();
 		pathData.clear();
+
+		// current and previous start out as equal
+		current_bitmap = previous_bitmap = original->current_bitmap;
+
+		current_filter = nullptr;
 	}
 
 	void GnuVGCanvas::SVGDocument::State::init_fresh() {
@@ -963,6 +977,9 @@ namespace KammoGUI {
 
 		pathSeg.clear();
 		pathData.clear();
+
+		current_bitmap = previous_bitmap = VG_INVALID_HANDLE;
+		current_filter = nullptr;
 	}
 
 	void GnuVGCanvas::SVGDocument::State::update_bounding_box(unsigned int *new_bbox) {
@@ -1022,7 +1039,61 @@ namespace KammoGUI {
  *
  ********************************************************/
 
-	void GnuVGCanvas::SVGDocument::stack_push() {
+	void GnuVGCanvas::SVGDocument::push_current_bitmap() {
+		if(state->current_bitmap != state->previous_bitmap) {
+			gnuvgRenderToImage(state->current_bitmap);
+
+			int w, h;
+			get_canvas_size(w, h);
+
+			VGfloat clearColor[] = {0,0, 0,0, 0.0, 0.0};
+			vgSetfv(VG_CLEAR_COLOR, 4, clearColor);
+			vgClear(0, 0, w, h);
+
+			KAMOFLAGE_ERROR("   cleared new render target: %p\n",
+					(void *)state->current_bitmap);
+		}
+	}
+
+	void GnuVGCanvas::SVGDocument::pop_current_bitmap() {
+		if(state->current_bitmap != state->previous_bitmap) {
+			gnuvgRenderToImage(state->previous_bitmap);
+			KAMOFLAGE_ERROR("   reverted to previous render target: %p\n",
+					(void *)state->previous_bitmap);
+		}
+	}
+
+	VGImage GnuVGCanvas::SVGDocument::get_fresh_bitmap() {
+		VGImage allocated;
+
+		if(bitmap_store.size() == 0) {
+			int w, h;
+
+			get_canvas_size(w, h);
+
+			allocated = vgCreateImage(VG_sRGBA_8888,
+						  w, h,
+						  VG_IMAGE_QUALITY_BETTER);
+		} else {
+			allocated = bitmap_store.front();
+			bitmap_store.pop_front();
+		}
+
+		return allocated;
+	}
+
+	void GnuVGCanvas::SVGDocument::recycle_bitmap(VGImage vgi) {
+		bitmap_store.push_back(vgi);
+	}
+
+	void GnuVGCanvas::SVGDocument::invalidate_bitmap_store() {
+		for(auto vgi : bitmap_store)
+			vgDestroyImage(vgi);
+
+		bitmap_store.clear();
+	}
+
+	void GnuVGCanvas::SVGDocument::stack_push(VGImage offscreen_bitmap) {
 		State* new_state;
 		if(state_unused.size() == 0) {
 			new_state = new State();
@@ -1039,9 +1110,20 @@ namespace KammoGUI {
 
 		state_stack.push_back(new_state);
 		state = new_state;
+
+		if(offscreen_bitmap != VG_INVALID_HANDLE)
+			state->current_bitmap = offscreen_bitmap;
+
+		push_current_bitmap();
 	}
 
 	void GnuVGCanvas::SVGDocument::stack_pop() {
+		pop_current_bitmap();
+
+		auto current_bitmap = state->current_bitmap;
+		auto previous_bitmap = state->previous_bitmap;
+		auto previous_filter = state->current_filter;
+
 		if(state_stack.size() <= 1)
 			throw GnuVGStateStackEmpty(parent->get_id());
 
@@ -1049,6 +1131,26 @@ namespace KammoGUI {
 
 		state_stack.pop_back();
 		state = state_stack.back();
+
+		if(previous_bitmap != current_bitmap) {
+			KAMOFLAGE_ERROR(" will render %p into %p.\n",
+					(void *)current_bitmap, (void *)previous_bitmap);
+#if 0
+			if(previous_filter)
+				previous_filter->execute(current_bitmap,
+							 VG_INVALID_HANDLE);
+			else
+#else
+			{
+				vgSeti(VG_MATRIX_MODE,
+				       VG_MATRIX_IMAGE_USER_TO_SURFACE);
+				vgLoadIdentity();
+				vgDrawImage(current_bitmap);
+			}
+#endif
+
+			recycle_bitmap(current_bitmap);
+		}
 
 		state->update_bounding_box(old_state->bounding_box);
 
@@ -1371,7 +1473,13 @@ namespace KammoGUI {
 	svg_status_t GnuVGCanvas::SVGDocument::begin_group(void* closure, double opacity) {
 		GnuVGCanvas::SVGDocument* context = (GnuVGCanvas::SVGDocument*)closure;
 
-		context->stack_push();
+		VGImage current_bitmap = VG_INVALID_HANDLE;
+		if(opacity != 1.0) {
+			current_bitmap = context->get_fresh_bitmap();
+		}
+
+		context->stack_push(current_bitmap);
+		KAMOFLAGE_ERROR(" --- begin group called. (state is %p)\n", context->state);
 
 		return SVG_STATUS_SUCCESS;
 	}
@@ -1381,12 +1489,14 @@ namespace KammoGUI {
 
 		context->stack_push();
 
+		KAMOFLAGE_ERROR(" --- begin element called. (state is %p)\n", context->state);
 		return SVG_STATUS_SUCCESS;
 	}
 
 	svg_status_t GnuVGCanvas::SVGDocument::end_element(void* closure) {
 		GnuVGCanvas::SVGDocument* context = (GnuVGCanvas::SVGDocument*)closure;
 
+		KAMOFLAGE_ERROR(" --- end element called. (state is %p)\n", context->state);
 		context->stack_pop();
 
 		return SVG_STATUS_SUCCESS;
@@ -1395,6 +1505,7 @@ namespace KammoGUI {
 	svg_status_t GnuVGCanvas::SVGDocument::end_group(void* closure, double opacity) {
 		GnuVGCanvas::SVGDocument* context = (GnuVGCanvas::SVGDocument*)closure;
 
+		KAMOFLAGE_ERROR(" --- end group called. (state is %p)\n", context->state);
 		context->stack_pop();
 
 		return SVG_STATUS_SUCCESS;
@@ -1676,11 +1787,40 @@ namespace KammoGUI {
 	}
 
 	svg_status_t GnuVGCanvas::SVGDocument::set_filter(void* closure, const char* id) {
+		GnuVGCanvas::SVGDocument* context = (GnuVGCanvas::SVGDocument*)closure;
+
+		auto found = context->filters.find(id);
+		if(found != context->filters.end()) {
+			context->state->current_filter = (*found).second;
+			KAMOFLAGE_ERROR(" --- set filter called.\n");
+
+			if(context->state->current_bitmap == context->state->previous_bitmap) {
+				context->state->current_bitmap = context->get_fresh_bitmap();
+				context->push_current_bitmap();
+			}
+		} else
+			context->state->current_filter = nullptr;
+
 		return SVG_STATUS_SUCCESS;
 	}
 
 /* filter */
 	svg_status_t GnuVGCanvas::SVGDocument::begin_filter(void* closure, const char* id) {
+		GnuVGCanvas::SVGDocument* context = (GnuVGCanvas::SVGDocument*)closure;
+
+		GnuVGFilter *filter_object = nullptr;
+
+		auto found = context->filters.find(id);
+		if(found != context->filters.end()) {
+			filter_object = (*found).second;
+			filter_object->clear();
+		} else {
+			filter_object = new GnuVGFilter();
+			context->filters[id] = filter_object;
+		}
+
+		context->state->current_filter = filter_object;
+
 		return SVG_STATUS_SUCCESS;
 	}
 
@@ -1939,6 +2079,8 @@ namespace KammoGUI {
 
 		context->fetch_gnuvg_boundingbox();
 
+		KAMOFLAGE_ERROR("Rendered an ellipse.\n");
+
 		return SVG_STATUS_SUCCESS;
 	}
 
@@ -2151,6 +2293,9 @@ namespace KammoGUI {
 		vgScale(1.0, -1.0);
 		vgGetMatrix(fundamentalMatrix);
 		vgLoadIdentity();
+
+		for(auto doc : documents)
+			doc->invalidate_bitmap_store();
 	}
 
 	void GnuVGCanvas::set_bg_color(double r, double g, double b) {
@@ -2160,18 +2305,22 @@ namespace KammoGUI {
 	}
 
 	void GnuVGCanvas::step(JNIEnv *env) {
+		usleep(1000000);
+		KAMOFLAGE_ERROR("\n\n\n::step() new frame\n");
+
 		GNUVG_APPLY_PROFILER_GUARD(full_frame);
 		{
 			GNUVG_APPLY_PROFILER_GUARD(prepare_context);
 
 			gnuvgUseContext(gnuVGctx);
-
 			VGfloat clearColor[] = {bg_r, bg_g, bg_b, 1.0};
 			vgSetfv(VG_CLEAR_COLOR, 4, clearColor);
 			vgClear(0, 0, window_width, window_height);
 		}
 		int active_animations = 0;
 		for(auto document : documents) {
+			gnuvgRenderToImage(VG_INVALID_HANDLE);
+
 			document->process_active_animations();
 			active_animations += document->number_of_active_animations();
 			document->on_render();
@@ -2301,12 +2450,130 @@ extern "C" {
 		cnv->init(env);
 	}
 
+	static VGImage test_image;
+
+	static inline void set_pixel(uint8_t *data, int stride,
+				     int x, int y,
+				     uint8_t r, uint8_t g, uint8_t b, uint8_t a) {
+		auto k = x + y * stride;
+		k = k << 2;
+		KAMOFLAGE_ERROR("set pixel at (%d, %d) %d < %d\n",
+				x, y,
+				k, 256 * 256 * 4);
+//#if 0
+		data[k + 0] = r;
+		data[k + 1] = g;
+		data[k + 2] = b;
+		data[k + 3] = a;
+//#endif
+	}
+
+	static void draw_line(
+		uint8_t *data, int stride,
+		int x1, int y1, int x2, int y2,
+		uint8_t r, uint8_t g, uint8_t b, uint8_t a
+		) {
+
+		if(x1 == x2 && y1 == y2) {
+			set_pixel(data, stride, x1, y1, r, g, b, a);
+			return;
+		}
+		if(x1 == x2) {
+			auto yb = y1 < y2 ? y1 : y2;
+			auto ye = y1 < y2 ? y2 : y1;
+			for(auto y = yb; y < ye; y++)
+				set_pixel(data, stride, x1, y, r, g, b, a);
+			return;
+		}
+		if(y1 == y2) {
+			auto xb = x1 < x2 ? x1 : x2;
+			auto xe = x1 < x2 ? x2 : x1;
+			for(auto x = xb; x < xe; x++)
+				set_pixel(data, stride, x, y1, r, g, b, a);
+			return;
+		}
+
+		int dx = abs(x1 - x2);
+		int dy = abs(y1 - y2);
+		int p = 2 * dy - dx;
+
+		int x, y, end, endy, step;
+
+		if(x1 > x2) {
+			x = x2;
+			y = y2;
+			end = x1;
+			endy = y1;
+		} else {
+			x = x1;
+			y = y1;
+			end = x2;
+			endy = y2;
+		}
+
+		step = endy < y ? -1 : 1;
+
+		while(x <= end) {
+			set_pixel(data, stride,
+				  x, y,
+				  r, g, b, a);
+			x = x + 1;
+			if(p < 0) {
+				p = p + 2 * dy;
+			} else {
+				y = y + step;
+				p = p + 2 * (dy - dx);
+			}
+		}
+	}
+
 	JNIEXPORT void Java_com_toolkits_kamoflage_gnuVGView_resize
 	(JNIEnv *env, jclass jcl, jlong nativeID, jint width, jint height,
 	 jfloat width_inches, jfloat height_inches) {
 		KammoGUI::GnuVGCanvas *cnv =
 			(KammoGUI::GnuVGCanvas *)nativeID;
 		cnv->resize(env, width, height, width_inches, height_inches);
+
+		static bool once = true;
+		if(once) {
+			once = false;
+			test_image = vgCreateImage(VG_sRGBA_8888, 256, 256, VG_IMAGE_QUALITY_BETTER);
+			KAMOFLAGE_ERROR("test image created.\n");
+
+			uint8_t data[256*256*4];
+
+			// clear buffer
+			memset(data, 0x33, sizeof(data));
+
+			// render some lines
+ 			draw_line(data, 256, // pointer, stride
+				  0, 128, 256, 128, // coordinates
+				  0xff, 0x00, 0x00, 0xff // RGBA
+				);
+ 			draw_line(data, 256, // pointer, stride
+				  0, 64, 256, 64, // coordinates
+				  0xff, 0x00, 0x00, 0xff // RGBA
+				);
+ 			draw_line(data, 256, // pointer, stride
+				  0, 192, 256, 192, // coordinates
+				  0xff, 0x00, 0x00, 0xff // RGBA
+				);
+ 			draw_line(data, 256, // pointer, stride
+				  128, 0, 128, 256, // coordinates
+				  0x00, 0xff, 0x00, 0xff // RGBA
+				);
+ 			draw_line(data, 256, // pointer, stride
+				  64, 0, 64, 256, // coordinates
+				  0x00, 0xff, 0x00, 0xff // RGBA
+				);
+ 			draw_line(data, 256, // pointer, stride
+				  192, 0, 192, 256, // coordinates
+				  0x00, 0xff, 0x00, 0xff // RGBA
+				);
+
+			vgImageSubData(test_image, data, 0, VG_sRGBA_8888, 0, 0, 256, 256);
+			KAMOFLAGE_ERROR("test image initialized.\n");
+		}
 	}
 
 	static void print_timing() {
@@ -2351,6 +2618,22 @@ extern "C" {
 		KammoGUI::GnuVGCanvas *cnv =
 			(KammoGUI::GnuVGCanvas *)nativeID;
 		cnv->step(env);
+
+		// rotate image matrix
+		static VGfloat angle = 0.0f;
+		vgSeti(VG_MATRIX_MODE,
+		       VG_MATRIX_IMAGE_USER_TO_SURFACE);
+		vgLoadIdentity();
+		vgTranslate(0.0f, 128.0f);
+		vgTranslate(128.0f, 128.0f);
+//		vgRotate(45.0f);
+		vgRotate(angle);
+		vgTranslate(-128.0f, -128.0f);
+		angle += 1.0f;
+
+		// render image
+		vgGaussianBlur(VG_INVALID_HANDLE, test_image, 4.0, 4.0, VG_TILE_FILL);
+		//vgDrawImage(test_image);
 
 		print_timing();
 	}

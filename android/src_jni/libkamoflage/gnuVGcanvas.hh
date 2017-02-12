@@ -83,6 +83,71 @@ namespace KammoGUI {
 		}
 	};
 
+	class GnuVG_feOperation {
+	public:
+		virtual ~GnuVG_feOperation() {}
+
+		virtual VGImage execute(std::map<std::string, GnuVG_feOperation*> &fe_map,
+					VGImage last_output,
+					VGImage sourceGraphic, VGImage backgroundImage,
+					const svg_paint_t &fill_paint,
+					const svg_paint_t &stroke_paint) const = 0; // returns an image containing the result
+	};
+
+	class GnuVG_feComposite : public GnuVG_feOperation {
+	public:
+		virtual VGImage execute(std::map<std::string, GnuVG_feOperation*> &fe_map,
+					VGImage last_output,
+					VGImage sourceGraphic, VGImage backgroundImage,
+					const svg_paint_t &fill_paint,
+					const svg_paint_t &stroke_paint) const;
+	};
+
+	class GnuVG_feFlood : public GnuVG_feOperation {
+	public:
+		virtual VGImage execute(std::map<std::string, GnuVG_feOperation*> &fe_map,
+					VGImage last_output,
+					VGImage sourceGraphic, VGImage backgroundImage,
+					const svg_paint_t &fill_paint,
+					const svg_paint_t &stroke_paint) const;
+	};
+
+	class GnuVG_feGaussianBlur : public GnuVG_feOperation {
+	public:
+		virtual VGImage execute(std::map<std::string, GnuVG_feOperation*> &fe_map,
+					VGImage last_output,
+					VGImage sourceGraphic, VGImage backgroundImage,
+					const svg_paint_t &fill_paint,
+					const svg_paint_t &stroke_paint) const;
+	};
+
+	class GnuVG_feOffset : public GnuVG_feOperation {
+	public:
+		virtual VGImage execute(std::map<std::string, GnuVG_feOperation*> &fe_map,
+					VGImage last_output,
+					VGImage sourceGraphic, VGImage backgroundImage,
+					const svg_paint_t &fill_paint,
+					const svg_paint_t &stroke_paint) const;
+	};
+
+	class GnuVGFilter {
+	public:
+		std::vector<GnuVG_feOperation*> fe_operations;
+		std::map<std::string, GnuVG_feOperation*> fe_map;
+
+		void execute(VGImage sourceGraphic, VGImage backgroundImage);
+		void clear() {
+			for(auto f : fe_operations)
+				delete f;
+			fe_operations.clear();
+			fe_map.clear();
+		}
+
+		~GnuVGFilter() {
+			clear();
+		}
+	};
+
 	class GnuVGCanvas : public Widget {
 	public:
 		enum dimension_t {
@@ -252,6 +317,8 @@ namespace KammoGUI {
 
 		class SVGDocument {
 		private:
+			std::map<std::string, GnuVGFilter *> filters;
+
 			std::set<Animation *> animations;
 			GnuVGCanvas *parent;
 			svg_t *svg;
@@ -274,6 +341,9 @@ namespace KammoGUI {
 				VGfloat opacity;
 
 				VGbitfield paint_modes;
+
+				VGImage current_bitmap, previous_bitmap;
+				GnuVGFilter *current_filter;
 
 				VGint fill_rule;
 				svg_paint_t fill_paint;
@@ -329,6 +399,7 @@ namespace KammoGUI {
 			State* state;
 			std::vector<State*> state_stack;
 			std::stack<State*> state_unused;
+			std::deque<VGImage> bitmap_store;
 
 			void set_color_and_alpha(
 				VGPaint* vgpaint, State* state, const svg_color_t *color, double alpha);
@@ -341,7 +412,12 @@ namespace KammoGUI {
 			void regenerate_scissors();
 			void length_to_pixel(svg_length_t *length, VGfloat* pixel);
 
-			void stack_push();
+			void push_current_bitmap();
+			void pop_current_bitmap();
+			VGImage get_fresh_bitmap();
+			void recycle_bitmap(VGImage vgi);
+
+			void stack_push(VGImage offscreen_bitmap = VG_INVALID_HANDLE);
 			void stack_pop();
 			void use_state_on_top();
 
@@ -501,6 +577,8 @@ namespace KammoGUI {
 			virtual void on_resize();
 
 			virtual float get_preferred_dimension(dimension_t dimension); // return value measured in inches
+
+			void invalidate_bitmap_store();
 		};
 
 	private:
