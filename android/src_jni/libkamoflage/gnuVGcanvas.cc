@@ -1093,7 +1093,8 @@ namespace KammoGUI {
 		bitmap_store.clear();
 	}
 
-	void GnuVGCanvas::SVGDocument::stack_push(VGImage offscreen_bitmap) {
+	void GnuVGCanvas::SVGDocument::stack_push(VGImage offscreen_bitmap,
+						  VGfloat opacity) {
 		State* new_state;
 		if(state_unused.size() == 0) {
 			new_state = new State();
@@ -1113,6 +1114,7 @@ namespace KammoGUI {
 
 		if(offscreen_bitmap != VG_INVALID_HANDLE)
 			state->current_bitmap = offscreen_bitmap;
+		state->opacity = opacity;
 
 		push_current_bitmap();
 	}
@@ -1142,10 +1144,30 @@ namespace KammoGUI {
 			else
 #else
 			{
+				VGfloat old_values[8];
+				VGfloat new_values[] = {
+					1.0, 1.0, 1.0, old_state->opacity,
+					0.0, 0.0, 0.0, 0.0
+				};
+				VGint old_color_transform;
+
+				// remember previos color transformation state
+				old_color_transform = vgGeti(VG_COLOR_TRANSFORM);
+				vgGetfv(VG_COLOR_TRANSFORM_VALUES, 8, old_values);
+
+				// set proper color transformation
+				vgSeti(VG_COLOR_TRANSFORM, VG_TRUE);
+				vgSetfv(VG_COLOR_TRANSFORM_VALUES, 8, new_values);
+
+				// do actual rendering
 				vgSeti(VG_MATRIX_MODE,
 				       VG_MATRIX_IMAGE_USER_TO_SURFACE);
 				vgLoadIdentity();
 				vgDrawImage(current_bitmap);
+
+				// restore previous color transformation state
+				vgSeti(VG_COLOR_TRANSFORM, old_color_transform);
+				vgSetfv(VG_COLOR_TRANSFORM_VALUES, 8, old_values);
 			}
 #endif
 
@@ -1478,7 +1500,7 @@ namespace KammoGUI {
 			current_bitmap = context->get_fresh_bitmap();
 		}
 
-		context->stack_push(current_bitmap);
+		context->stack_push(current_bitmap, opacity);
 		KAMOFLAGE_ERROR(" --- begin group called. (state is %p)\n", context->state);
 
 		return SVG_STATUS_SUCCESS;

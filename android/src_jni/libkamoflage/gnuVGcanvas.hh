@@ -344,6 +344,7 @@ namespace KammoGUI {
 
 				VGImage current_bitmap, previous_bitmap;
 				GnuVGFilter *current_filter;
+				VGfloat bitmap_opacity;
 
 				VGint fill_rule;
 				svg_paint_t fill_paint;
@@ -417,7 +418,8 @@ namespace KammoGUI {
 			VGImage get_fresh_bitmap();
 			void recycle_bitmap(VGImage vgi);
 
-			void stack_push(VGImage offscreen_bitmap = VG_INVALID_HANDLE);
+			void stack_push(VGImage offscreen_bitmap = VG_INVALID_HANDLE,
+					VGfloat opacity = 1.0f);
 			void stack_pop();
 			void use_state_on_top();
 
