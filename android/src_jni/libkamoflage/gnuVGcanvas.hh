@@ -27,6 +27,20 @@
 
 namespace KammoGUI {
 
+	template <typename F>
+	struct FinalAction {
+		FinalAction(F f) : clean_{f} {}
+		~FinalAction() { if(enabled_) clean_(); }
+		void disable() { enabled_ = false; };
+	private:
+		F clean_;
+		bool enabled_{true}; };
+
+	template <typename F>
+	FinalAction<F> finally(F f) {
+		return FinalAction<F>(f);
+	}
+
 	template <typename T>
 	class GvgVector {
 	private:
@@ -83,68 +97,240 @@ namespace KammoGUI {
 		}
 	};
 
+	class VGImageAllocator {
+	public:
+		virtual VGImage get_fresh_bitmap() = 0;
+		virtual void recycle_bitmap(VGImage vgi) = 0;
+	};
+
 	class GnuVG_feOperation {
 	public:
+		int depend_on_1 = -1, depend_on_2 = -1;
+		int ref_count = 0, expected_ref_count = 0;
+		VGImage result = VG_INVALID_HANDLE;
+
+		svg_length_t x, y, width, height;
+
+		void unref_result(VGImageAllocator* vgallocator);
+
 		virtual ~GnuVG_feOperation() {}
 
-		virtual VGImage execute(std::map<std::string, GnuVG_feOperation*> &fe_map,
-					VGImage last_output,
-					VGImage sourceGraphic, VGImage backgroundImage,
-					const svg_paint_t &fill_paint,
-					const svg_paint_t &stroke_paint) const = 0; // returns an image containing the result
+		VGImage get_result(
+			VGImageAllocator* vgallocator,
+			std::vector<GnuVG_feOperation*> &fe_ops,
+			VGImage sourceGraphic, VGImage backgroundImage
+			) {
+			if(result == VG_INVALID_HANDLE)
+				result = execute(vgallocator, fe_ops,
+						 sourceGraphic, backgroundImage);
+
+			return result;
+		}
+
+		VGImage get_image(
+			VGImageAllocator* vgallocator,
+			std::vector<GnuVG_feOperation*> &fe_ops,
+			VGImage sourceGraphic, VGImage backgroundImage,
+			svg_filter_in_t in, int in_op_reference
+			);
+		void recycle_image(
+			VGImageAllocator* vgallocator,
+			std::vector<GnuVG_feOperation*> &fe_ops,
+			svg_filter_in_t in, int in_op_reference);
+
+		virtual VGImage execute(
+			VGImageAllocator* vgallocator,
+			std::vector<GnuVG_feOperation*> &fe_ops,
+			VGImage sourceGraphic, VGImage backgroundImage
+			) = 0; // returns an image containing the result
+
+		virtual void recreate_expected_ref_count(std::vector<GnuVG_feOperation*> &fe_ops) = 0;
+
+		GnuVG_feOperation(
+			svg_length_t* _x, svg_length_t* _y,
+			svg_length_t* _width, svg_length_t* _height)
+			{
+			x = *_x;
+			y = *_y;
+			width = *_width;
+			height = *_height;
+		}
+
 	};
 
 	class GnuVG_feComposite : public GnuVG_feOperation {
 	public:
-		virtual VGImage execute(std::map<std::string, GnuVG_feOperation*> &fe_map,
-					VGImage last_output,
-					VGImage sourceGraphic, VGImage backgroundImage,
-					const svg_paint_t &fill_paint,
-					const svg_paint_t &stroke_paint) const;
+		feCompositeOperator_t oprt;
+		svg_filter_in_t in; int in_op_reference;
+		svg_filter_in_t in2; int in2_op_reference;
+		double k1, k2, k3, k4;
+
+		GnuVG_feComposite(
+			svg_length_t* _x, svg_length_t* _y,
+			svg_length_t* _width, svg_length_t* _height,
+			feCompositeOperator_t _oprt,
+			svg_filter_in_t _in, int _in_op_reference,
+			svg_filter_in_t _in2, int _in2_op_reference,
+			double _k1, double _k2, double _k3, double _k4
+			)
+			: GnuVG_feOperation(_x, _y, _width, _height)
+			, oprt(_oprt)
+			, in(_in), in_op_reference(_in_op_reference)
+			, in2(_in2), in2_op_reference(_in2_op_reference)
+			, k1(_k1), k2(_k2), k3(_k3), k4(_k4)
+			{
+		}
+
+		virtual VGImage execute(
+			VGImageAllocator* vgallocator,
+			std::vector<GnuVG_feOperation*> &fe_ops,
+			VGImage sourceGraphic, VGImage backgroundImage
+			);
+
+		virtual void recreate_expected_ref_count(std::vector<GnuVG_feOperation*> &fe_ops) {
+			++expected_ref_count;
+
+			if(in == in_Reference)
+				fe_ops[in_op_reference]->recreate_expected_ref_count(fe_ops);
+			if(in2 == in_Reference)
+				fe_ops[in2_op_reference]->recreate_expected_ref_count(fe_ops);
+		}
 	};
 
 	class GnuVG_feFlood : public GnuVG_feOperation {
 	public:
-		virtual VGImage execute(std::map<std::string, GnuVG_feOperation*> &fe_map,
-					VGImage last_output,
-					VGImage sourceGraphic, VGImage backgroundImage,
-					const svg_paint_t &fill_paint,
-					const svg_paint_t &stroke_paint) const;
+		svg_filter_in_t in; int in_op_reference;
+		const svg_color_t color;
+		double opacity;
+
+		VGfloat clear_color[4];
+
+		GnuVG_feFlood(
+			svg_length_t* _x, svg_length_t* _y,
+			svg_length_t* _width, svg_length_t* _height,
+			svg_filter_in_t _in, int _in_op_reference,
+			const svg_color_t* _color, double _opacity
+			)
+			: GnuVG_feOperation(_x, _y, _width, _height)
+			, in(_in), in_op_reference(_in_op_reference)
+			, color(*_color), opacity(_opacity) {
+			int r = (color.rgb >> 16) & 0xff;
+			int g = (color.rgb >>  8) & 0xff;
+			int b = (color.rgb >>  0) & 0xff;
+
+			VGfloat f_r = (VGfloat)r;
+			VGfloat f_g = (VGfloat)g;
+			VGfloat f_b = (VGfloat)b;
+
+			clear_color[0] = f_r / 255.0f;
+			clear_color[1] = f_g / 255.0f;
+			clear_color[2] = f_b / 255.0f;
+			clear_color[3] = opacity;
+		}
+
+		virtual VGImage execute(
+			VGImageAllocator* vgallocator,
+			std::vector<GnuVG_feOperation*> &fe_ops,
+			VGImage sourceGraphic, VGImage backgroundImage
+			);
+
+		virtual void recreate_expected_ref_count(std::vector<GnuVG_feOperation*> &fe_ops) {
+			++expected_ref_count;
+
+			if(in == in_Reference)
+				fe_ops[in_op_reference]->recreate_expected_ref_count(fe_ops);
+		}
 	};
 
 	class GnuVG_feGaussianBlur : public GnuVG_feOperation {
 	public:
-		virtual VGImage execute(std::map<std::string, GnuVG_feOperation*> &fe_map,
-					VGImage last_output,
-					VGImage sourceGraphic, VGImage backgroundImage,
-					const svg_paint_t &fill_paint,
-					const svg_paint_t &stroke_paint) const;
+		svg_filter_in_t in; int in_op_reference;
+		VGfloat std_dev_x, std_dev_y;
+
+		GnuVG_feGaussianBlur(
+			svg_length_t* _x, svg_length_t* _y,
+			svg_length_t* _width, svg_length_t* _height,
+			svg_filter_in_t _in, int _in_op_reference,
+			double _std_dev_x, double _std_dev_y
+			)
+			: GnuVG_feOperation(_x, _y, _width, _height)
+			, in(_in), in_op_reference(_in_op_reference)
+			, std_dev_x(_std_dev_x)
+			, std_dev_y(_std_dev_y)
+			{}
+
+		virtual VGImage execute(
+			VGImageAllocator* vgallocator,
+			std::vector<GnuVG_feOperation*> &fe_ops,
+			VGImage sourceGraphic, VGImage backgroundImage
+			);
+
+		virtual void recreate_expected_ref_count(std::vector<GnuVG_feOperation*> &fe_ops) {
+			++expected_ref_count;
+
+			if(in == in_Reference)
+				fe_ops[in_op_reference]->recreate_expected_ref_count(fe_ops);
+		}
 	};
 
 	class GnuVG_feOffset : public GnuVG_feOperation {
 	public:
-		virtual VGImage execute(std::map<std::string, GnuVG_feOperation*> &fe_map,
-					VGImage last_output,
-					VGImage sourceGraphic, VGImage backgroundImage,
-					const svg_paint_t &fill_paint,
-					const svg_paint_t &stroke_paint) const;
+		svg_filter_in_t in; int in_op_reference;
+		VGfloat dx, dy;
+
+		GnuVG_feOffset(
+			svg_length_t* _x, svg_length_t* _y,
+			svg_length_t* _width,
+			svg_length_t* _height,
+			svg_filter_in_t _in, int _in_op_reference,
+			double _dx, double _dy
+			)
+			: GnuVG_feOperation(_x, _y, _width, _height)
+			, in(_in), in_op_reference(_in_op_reference)
+			, dx(_dx), dy(_dy)
+			{}
+
+		virtual VGImage execute(
+			VGImageAllocator* vgallocator,
+			std::vector<GnuVG_feOperation*> &fe_ops,
+			VGImage sourceGraphic, VGImage backgroundImage
+			);
+
+		virtual void recreate_expected_ref_count(std::vector<GnuVG_feOperation*> &fe_ops) {
+			++expected_ref_count;
+
+			if(in == in_Reference)
+				fe_ops[in_op_reference]->recreate_expected_ref_count(fe_ops);
+		}
 	};
 
 	class GnuVGFilter {
 	public:
 		std::vector<GnuVG_feOperation*> fe_operations;
-		std::map<std::string, GnuVG_feOperation*> fe_map;
+		GnuVG_feOperation* last_operation;
 
-		void execute(VGImage sourceGraphic, VGImage backgroundImage);
+		VGImage execute(VGImageAllocator* vgallocator,
+				VGImage sourceGraphic, VGImage backgroundImage);
+
 		void clear() {
 			for(auto f : fe_operations)
 				delete f;
 			fe_operations.clear();
-			fe_map.clear();
+			last_operation = nullptr;
 		}
 
 		~GnuVGFilter() {
 			clear();
+		}
+
+		void add_operation(GnuVG_feOperation* op) {
+			fe_operations.push_back(op);
+
+			for(auto op : fe_operations)
+				op->expected_ref_count = 0;
+
+			last_operation = op;
+			last_operation->recreate_expected_ref_count(fe_operations);
 		}
 	};
 
@@ -315,7 +501,7 @@ namespace KammoGUI {
 			ElementReference& operator=(ElementReference&& a);
 		};
 
-		class SVGDocument {
+		class SVGDocument : public VGImageAllocator {
 		private:
 			std::map<std::string, GnuVGFilter *> filters;
 
@@ -415,8 +601,6 @@ namespace KammoGUI {
 
 			void push_current_bitmap();
 			void pop_current_bitmap();
-			VGImage get_fresh_bitmap();
-			void recycle_bitmap(VGImage vgi);
 
 			void stack_push(VGImage offscreen_bitmap = VG_INVALID_HANDLE,
 					VGfloat opacity = 1.0f);
@@ -580,6 +764,8 @@ namespace KammoGUI {
 
 			virtual float get_preferred_dimension(dimension_t dimension); // return value measured in inches
 
+			virtual VGImage get_fresh_bitmap() override;
+			virtual void recycle_bitmap(VGImage vgi) override;
 			void invalidate_bitmap_store();
 		};
 

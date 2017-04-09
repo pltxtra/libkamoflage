@@ -66,6 +66,255 @@ namespace KammoGUI {
 
 /*************************
  *
+ *   Filter primitives implementation
+ *
+ *************************/
+
+	void GnuVG_feOperation::unref_result(VGImageAllocator* vgallocator) {
+		KAMOFLAGE_ERROR("feOperation::unref_result() for %p => %d\n",
+				this, ref_count);
+		if((--ref_count) == 0) {
+			KAMOFLAGE_ERROR("feOperation for %p will recycle %p...\n",
+					this, (void *)result);
+			vgallocator->recycle_bitmap(result);
+			result = VG_INVALID_HANDLE;
+		}
+	}
+
+	VGImage GnuVG_feOperation::get_image(
+		VGImageAllocator* vgallocator,
+		std::vector<GnuVG_feOperation*> &fe_ops,
+		VGImage sourceGraphic, VGImage backgroundImage,
+		svg_filter_in_t in, int in_op_reference
+		) {
+		switch(in) {
+
+		case in_SourceGraphic:
+			KAMOFLAGE_ERROR("get SourceGraphic\n");
+			return sourceGraphic;
+		case in_BackgroundGraphic:
+			KAMOFLAGE_ERROR("get BackgroundGraphic\n");
+			return backgroundImage;
+
+		case in_Reference:
+			KAMOFLAGE_ERROR("get graphic by reference. %p\n",
+				fe_ops[in_op_reference]);
+			return fe_ops[in_op_reference]->get_result(
+				vgallocator,
+				fe_ops,
+				sourceGraphic, backgroundImage
+				);
+
+		case in_BackgroundAlpha:
+		case in_FillPaint:
+		case in_StrokePaint:
+		case in_SourceAlpha:
+			break;
+		}
+		return VG_INVALID_HANDLE;
+	}
+
+	void GnuVG_feOperation::recycle_image(
+		VGImageAllocator* vgallocator,
+		std::vector<GnuVG_feOperation*> &fe_ops,
+		svg_filter_in_t in, int in_op_reference) {
+		if(in == in_Reference) {
+			KAMOFLAGE_ERROR("Recycle by reference... %p\n",
+				fe_ops[in_op_reference]);
+				fe_ops[in_op_reference]->unref_result(vgallocator);
+		}
+	}
+
+	VGImage GnuVG_feComposite::execute(
+			VGImageAllocator* vgallocator,
+			std::vector<GnuVG_feOperation*> &fe_ops,
+			VGImage sourceGraphic, VGImage backgroundImage
+		) {
+		auto img_1 = get_image(vgallocator, fe_ops,
+				       sourceGraphic, backgroundImage,
+				       in, in_op_reference);
+		auto img_2 = get_image(vgallocator, fe_ops,
+				       sourceGraphic, backgroundImage,
+				       in2, in2_op_reference);
+
+		auto retval = vgallocator->get_fresh_bitmap();
+
+		KAMOFLAGE_ERROR("feCompiste::execute for %p, (%p, %p) -> %p\n",
+				this,
+				(void *)img_1, (void *)img_2,
+				(void *)retval);
+		KAMOFLAGE_ERROR("feComposite %p - %d, %d\n",
+				this,
+				ref_count, expected_ref_count);
+		gnuvgRenderToImage(retval);
+		vgSeti(VG_MATRIX_MODE,
+		       VG_MATRIX_IMAGE_USER_TO_SURFACE);
+		vgLoadIdentity();
+
+		int old_blend_mode = vgGeti(VG_BLEND_MODE);
+		vgSeti(VG_BLEND_MODE, VG_BLEND_SRC);
+		vgDrawImage(img_2);
+		vgSeti(VG_BLEND_MODE, VG_BLEND_SRC_IN);
+		vgDrawImage(img_1);
+		vgSeti(VG_BLEND_MODE, old_blend_mode);
+
+		KAMOFLAGE_ERROR("Restored blend mode: %d (should be %d)\n",
+				old_blend_mode, VG_BLEND_SRC_OVER);
+
+		recycle_image(vgallocator, fe_ops,
+			      in2, in2_op_reference);
+		recycle_image(vgallocator, fe_ops,
+			      in, in_op_reference);
+
+		return retval;
+	}
+
+	VGImage GnuVG_feFlood::execute(
+		VGImageAllocator* vgallocator,
+		std::vector<GnuVG_feOperation*> &fe_ops,
+		VGImage sourceGraphic, VGImage backgroundImage
+		) {
+		auto retval = vgallocator->get_fresh_bitmap();
+		KAMOFLAGE_ERROR("feFlood::execute for %p to %p\n",
+				(void *)this,
+				(void *)retval);
+
+		gnuvgRenderToImage(retval);
+		vgSeti(VG_MATRIX_MODE,
+		       VG_MATRIX_IMAGE_USER_TO_SURFACE);
+		vgLoadIdentity();
+
+		VGint w, h;
+		w = vgGetParameteri(retval, VG_IMAGE_WIDTH);
+		h = vgGetParameteri(retval, VG_IMAGE_HEIGHT);
+
+		if(color.is_current_color)
+			KAMOFLAGE_ERROR("GnuVG_feFlood does not implement support for current color.");
+
+		KAMOFLAGE_ERROR("feFlood(%d, %d) => %f, %f, %f, %f\n",
+			    w, h,
+			    clear_color[0],
+			    clear_color[1],
+			    clear_color[2],
+			    clear_color[3]
+			);
+
+		vgSetfv(VG_CLEAR_COLOR, 4, clear_color);
+		vgClear(0, 0, w, h);
+
+		return retval;
+	}
+
+	VGImage GnuVG_feGaussianBlur::execute(
+			VGImageAllocator* vgallocator,
+			std::vector<GnuVG_feOperation*> &fe_ops,
+			VGImage sourceGraphic, VGImage backgroundImage
+		) {
+		KAMOFLAGE_ERROR("feGaussianBlur::execute\n");
+		auto img_1 = get_image(vgallocator, fe_ops,
+				       sourceGraphic, backgroundImage,
+				       in, in_op_reference);
+
+		auto retval = vgallocator->get_fresh_bitmap();
+
+		gnuvgRenderToImage(retval);
+		vgSeti(VG_MATRIX_MODE,
+		       VG_MATRIX_IMAGE_USER_TO_SURFACE);
+		vgLoadIdentity();
+
+		VGint w, h;
+		w = vgGetParameteri(retval, VG_IMAGE_WIDTH);
+		h = vgGetParameteri(retval, VG_IMAGE_HEIGHT);
+
+		VGfloat clear_color[] = {0.0f, 0.0f, 0.0f, 0.0f};
+		KAMOFLAGE_ERROR("feGaussianBlur(%d, %d)\n",
+			    w, h
+			);
+		vgSetfv(VG_CLEAR_COLOR, 4, clear_color);
+		vgClear(0, 0, w, h);
+
+		vgGaussianBlur(VG_INVALID_HANDLE, img_1,
+			       std_dev_x, std_dev_y,
+			       VG_TILE_FILL);
+
+		recycle_image(vgallocator, fe_ops,
+			      in, in_op_reference);
+
+		return retval;
+	}
+
+	VGImage GnuVG_feOffset::execute(
+		VGImageAllocator* vgallocator,
+		std::vector<GnuVG_feOperation*> &fe_ops,
+		VGImage sourceGraphic, VGImage backgroundImage
+		) {
+		KAMOFLAGE_ERROR("feOffset::execute\n");
+		auto img_1 = get_image(vgallocator, fe_ops,
+				       sourceGraphic, backgroundImage,
+				       in, in_op_reference);
+
+		auto retval = vgallocator->get_fresh_bitmap();
+
+		gnuvgRenderToImage(retval);
+		vgSeti(VG_MATRIX_MODE,
+		       VG_MATRIX_IMAGE_USER_TO_SURFACE);
+		vgLoadIdentity();
+		vgTranslate(dx, dy);
+
+		VGint w, h;
+		w = vgGetParameteri(retval, VG_IMAGE_WIDTH);
+		h = vgGetParameteri(retval, VG_IMAGE_HEIGHT);
+
+		VGfloat clear_color[] = {0.0f, 0.0f, 0.0f, 0.0f};
+		KAMOFLAGE_ERROR("feOffset(%d, %d)\n",
+			    w, h
+			);
+		vgSetfv(VG_CLEAR_COLOR, 4, clear_color);
+		vgClear(0, 0, w, h);
+
+		int old_blend_mode = vgGeti(VG_BLEND_MODE);
+		vgSeti(VG_BLEND_MODE, VG_BLEND_SRC);
+		vgDrawImage(img_1);
+		vgSeti(VG_BLEND_MODE, old_blend_mode);
+
+		recycle_image(vgallocator, fe_ops,
+			      in, in_op_reference);
+
+		return retval;
+	}
+
+	VGImage GnuVGFilter::execute(VGImageAllocator* vgallocator,
+				     VGImage sourceGraphic, VGImage backgroundImage) {
+			// never forget to return to previous render target
+			auto old_target = gnuvgGetRenderTarget();
+			auto cleanup = finally(
+				[old_target] {
+					KAMOFLAGE_ERROR("Render filter to old target: %p\n",
+						    (void *)old_target);
+					gnuvgRenderToImage(old_target);
+				}
+				);
+
+			// OK, let's get down to business
+			if(last_operation) {
+				for(auto op : fe_operations)
+					op->ref_count = op->expected_ref_count;
+				auto result = last_operation->get_result(
+					vgallocator,
+					fe_operations,
+					sourceGraphic, backgroundImage
+					);
+				last_operation->result = VG_INVALID_HANDLE;
+				KAMOFLAGE_ERROR("Result from last_operation %p is %p\n",
+						last_operation, (void *)result);
+				return result;
+			}
+			return VG_INVALID_HANDLE;
+		}
+
+
+/*************************
+ *
  *   MotionEvent implementation
  *
  *************************/
@@ -225,15 +474,6 @@ namespace KammoGUI {
 		d = t4;
 		e = t5;
 		f = t6;
-	}
-
-/********************************************************
- *
- *           gnuVGFilter
- *
- ********************************************************/
-
-	void GnuVGFilter::execute(VGImage sourceGraphic, VGImage backgroundImage) {
 	}
 
 /********************************************************
@@ -1137,39 +1377,46 @@ namespace KammoGUI {
 		if(previous_bitmap != current_bitmap) {
 			KAMOFLAGE_ERROR(" will render %p into %p.\n",
 					(void *)current_bitmap, (void *)previous_bitmap);
-#if 0
-			if(previous_filter)
-				previous_filter->execute(current_bitmap,
-							 VG_INVALID_HANDLE);
-			else
-#else
-			{
-				VGfloat old_values[8];
-				VGfloat new_values[] = {
-					1.0, 1.0, 1.0, old_state->opacity,
-					0.0, 0.0, 0.0, 0.0
-				};
-				VGint old_color_transform;
 
-				// remember previos color transformation state
-				old_color_transform = vgGeti(VG_COLOR_TRANSFORM);
-				vgGetfv(VG_COLOR_TRANSFORM_VALUES, 8, old_values);
-
-				// set proper color transformation
-				vgSeti(VG_COLOR_TRANSFORM, VG_TRUE);
-				vgSetfv(VG_COLOR_TRANSFORM_VALUES, 8, new_values);
-
-				// do actual rendering
-				vgSeti(VG_MATRIX_MODE,
-				       VG_MATRIX_IMAGE_USER_TO_SURFACE);
-				vgLoadIdentity();
-				vgDrawImage(current_bitmap);
-
-				// restore previous color transformation state
-				vgSeti(VG_COLOR_TRANSFORM, old_color_transform);
-				vgSetfv(VG_COLOR_TRANSFORM_VALUES, 8, old_values);
+			if(previous_filter) {
+				KAMOFLAGE_ERROR(" will render filter...\n");
+				auto filtered_bitmap = previous_filter->execute(
+					this,
+					current_bitmap,
+					VG_INVALID_HANDLE
+					);
+				KAMOFLAGE_ERROR("  filter generated: %p\n",
+						(void *)filtered_bitmap);
+				if(filtered_bitmap != VG_INVALID_HANDLE) {
+					recycle_bitmap(current_bitmap);
+					current_bitmap = filtered_bitmap;
+				}
 			}
-#endif
+
+			VGfloat old_values[8];
+			VGfloat new_values[] = {
+				1.0, 1.0, 1.0, old_state->opacity,
+				0.0, 0.0, 0.0, 0.0
+			};
+			VGint old_color_transform;
+
+			// remember previos color transformation state
+			old_color_transform = vgGeti(VG_COLOR_TRANSFORM);
+			vgGetfv(VG_COLOR_TRANSFORM_VALUES, 8, old_values);
+
+			// set proper color transformation
+			vgSeti(VG_COLOR_TRANSFORM, VG_TRUE);
+			vgSetfv(VG_COLOR_TRANSFORM_VALUES, 8, new_values);
+
+			// do actual rendering
+			vgSeti(VG_MATRIX_MODE,
+			       VG_MATRIX_IMAGE_USER_TO_SURFACE);
+			vgLoadIdentity();
+			vgDrawImage(current_bitmap);
+
+			// restore previous color transformation state
+			vgSeti(VG_COLOR_TRANSFORM, old_color_transform);
+			vgSetfv(VG_COLOR_TRANSFORM_VALUES, 8, old_values);
 
 			recycle_bitmap(current_bitmap);
 		}
@@ -1846,46 +2093,99 @@ namespace KammoGUI {
 		return SVG_STATUS_SUCCESS;
 	}
 
-	svg_status_t GnuVGCanvas::SVGDocument::add_filter_feBlend(void* closure,
-								  svg_length_t* x, svg_length_t* y,
-								  svg_length_t* width, svg_length_t* height,
-								  svg_filter_in_t in, int in_op_reference,
-								  svg_filter_in_t in2, int in2_op_reference,
-								  feBlendMode_t mode) {
+	svg_status_t GnuVGCanvas::SVGDocument::add_filter_feBlend(
+		void* closure,
+		svg_length_t* x, svg_length_t* y,
+		svg_length_t* width, svg_length_t* height,
+		svg_filter_in_t in, int in_op_reference,
+		svg_filter_in_t in2, int in2_op_reference,
+		feBlendMode_t mode)
+	{
 		return SVG_STATUS_SUCCESS;
 	}
 
-	svg_status_t GnuVGCanvas::SVGDocument::add_filter_feComposite(void* closure,
-								      svg_length_t* x, svg_length_t* y,
-								      svg_length_t* width, svg_length_t* height,
-								      feCompositeOperator_t oprt,
-								      svg_filter_in_t in, int in_op_reference,
-								      svg_filter_in_t in2, int in2_op_reference,
-								      double k1, double k2, double k3, double k4) {
+	svg_status_t GnuVGCanvas::SVGDocument::add_filter_feComposite(
+		void* closure,
+		svg_length_t* x, svg_length_t* y,
+		svg_length_t* width, svg_length_t* height,
+		feCompositeOperator_t oprt,
+		svg_filter_in_t in, int in_op_reference,
+		svg_filter_in_t in2, int in2_op_reference,
+		double k1, double k2, double k3, double k4)
+	{
+		GnuVGCanvas::SVGDocument* context = (GnuVGCanvas::SVGDocument*)closure;
+		if(auto cf = context->state->current_filter) {
+			auto op = new GnuVG_feComposite(
+				x, y,
+				width, height,
+				oprt,
+				in, in_op_reference,
+				in2, in2_op_reference,
+				k1, k2, k3, k4);
+			cf->add_operation(op);
+		}
+
 		return SVG_STATUS_SUCCESS;
 	}
 
-	svg_status_t GnuVGCanvas::SVGDocument::add_filter_feFlood(void* closure,
-								  svg_length_t* x, svg_length_t* y,
-								  svg_length_t* width, svg_length_t* height,
-								  svg_filter_in_t in, int in_op_reference,
-								  const svg_color_t* color, double opacity) {
+	svg_status_t GnuVGCanvas::SVGDocument::add_filter_feFlood(
+		void* closure,
+		svg_length_t* x, svg_length_t* y,
+		svg_length_t* width, svg_length_t* height,
+		svg_filter_in_t in, int in_op_reference,
+		const svg_color_t* color, double opacity)
+	{
+		GnuVGCanvas::SVGDocument* context = (GnuVGCanvas::SVGDocument*)closure;
+		if(auto cf = context->state->current_filter) {
+			auto op = new GnuVG_feFlood(
+				x, y,
+				width, height,
+				in, in_op_reference,
+				color, opacity);
+			cf->add_operation(op);
+		}
+
 		return SVG_STATUS_SUCCESS;
 	}
 
-	svg_status_t GnuVGCanvas::SVGDocument::add_filter_feGaussianBlur(void* closure,
-									 svg_length_t* x, svg_length_t* y,
-									 svg_length_t* width, svg_length_t* height,
-									 svg_filter_in_t in, int in_op_reference,
-									 double std_dev_x, double std_dev_y) {
+	svg_status_t GnuVGCanvas::SVGDocument::add_filter_feGaussianBlur(
+		void* closure,
+		svg_length_t* x, svg_length_t* y,
+		svg_length_t* width, svg_length_t* height,
+		svg_filter_in_t in, int in_op_reference,
+		double std_dev_x, double std_dev_y)
+	{
+		GnuVGCanvas::SVGDocument* context = (GnuVGCanvas::SVGDocument*)closure;
+		if(auto cf = context->state->current_filter) {
+			auto op = new GnuVG_feGaussianBlur(
+				x, y,
+				width, height,
+				in, in_op_reference,
+				std_dev_x, std_dev_y);
+			cf->add_operation(op);
+		}
+
 		return SVG_STATUS_SUCCESS;
 	}
 
-	svg_status_t GnuVGCanvas::SVGDocument::add_filter_feOffset(void* closure,
-								   svg_length_t* x, svg_length_t* y,
-								   svg_length_t* width, svg_length_t* height,
-								   svg_filter_in_t in, int in_op_reference,
-								   double dx, double dy) {
+	svg_status_t GnuVGCanvas::SVGDocument::add_filter_feOffset(
+		void* closure,
+		svg_length_t* x, svg_length_t* y,
+		svg_length_t* width,
+		svg_length_t* height,
+		svg_filter_in_t in, int in_op_reference,
+		double dx, double dy)
+	{
+		GnuVGCanvas::SVGDocument* context = (GnuVGCanvas::SVGDocument*)closure;
+		if(auto cf = context->state->current_filter) {
+			auto op = new GnuVG_feOffset(
+				x, y,
+				width, height,
+				in, in_op_reference,
+				dx, dy);
+			cf->add_operation(op);
+		}
+
 		return SVG_STATUS_SUCCESS;
 	}
 
