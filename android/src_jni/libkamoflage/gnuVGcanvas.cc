@@ -2856,130 +2856,12 @@ extern "C" {
 		cnv->init(env);
 	}
 
-	static VGImage test_image;
-
-	static inline void set_pixel(uint8_t *data, int stride,
-				     int x, int y,
-				     uint8_t r, uint8_t g, uint8_t b, uint8_t a) {
-		auto k = x + y * stride;
-		k = k << 2;
-		KAMOFLAGE_ERROR("set pixel at (%d, %d) %d < %d\n",
-				x, y,
-				k, 256 * 256 * 4);
-//#if 0
-		data[k + 0] = r;
-		data[k + 1] = g;
-		data[k + 2] = b;
-		data[k + 3] = a;
-//#endif
-	}
-
-	static void draw_line(
-		uint8_t *data, int stride,
-		int x1, int y1, int x2, int y2,
-		uint8_t r, uint8_t g, uint8_t b, uint8_t a
-		) {
-
-		if(x1 == x2 && y1 == y2) {
-			set_pixel(data, stride, x1, y1, r, g, b, a);
-			return;
-		}
-		if(x1 == x2) {
-			auto yb = y1 < y2 ? y1 : y2;
-			auto ye = y1 < y2 ? y2 : y1;
-			for(auto y = yb; y < ye; y++)
-				set_pixel(data, stride, x1, y, r, g, b, a);
-			return;
-		}
-		if(y1 == y2) {
-			auto xb = x1 < x2 ? x1 : x2;
-			auto xe = x1 < x2 ? x2 : x1;
-			for(auto x = xb; x < xe; x++)
-				set_pixel(data, stride, x, y1, r, g, b, a);
-			return;
-		}
-
-		int dx = abs(x1 - x2);
-		int dy = abs(y1 - y2);
-		int p = 2 * dy - dx;
-
-		int x, y, end, endy, step;
-
-		if(x1 > x2) {
-			x = x2;
-			y = y2;
-			end = x1;
-			endy = y1;
-		} else {
-			x = x1;
-			y = y1;
-			end = x2;
-			endy = y2;
-		}
-
-		step = endy < y ? -1 : 1;
-
-		while(x <= end) {
-			set_pixel(data, stride,
-				  x, y,
-				  r, g, b, a);
-			x = x + 1;
-			if(p < 0) {
-				p = p + 2 * dy;
-			} else {
-				y = y + step;
-				p = p + 2 * (dy - dx);
-			}
-		}
-	}
-
 	JNIEXPORT void Java_com_toolkits_kamoflage_gnuVGView_resize
 	(JNIEnv *env, jclass jcl, jlong nativeID, jint width, jint height,
 	 jfloat width_inches, jfloat height_inches) {
 		KammoGUI::GnuVGCanvas *cnv =
 			(KammoGUI::GnuVGCanvas *)nativeID;
 		cnv->resize(env, width, height, width_inches, height_inches);
-
-		static bool once = true;
-		if(once) {
-			once = false;
-			test_image = vgCreateImage(VG_sRGBA_8888, 256, 256, VG_IMAGE_QUALITY_BETTER);
-			KAMOFLAGE_ERROR("test image created.\n");
-
-			uint8_t data[256*256*4];
-
-			// clear buffer
-			memset(data, 0x33, sizeof(data));
-
-			// render some lines
- 			draw_line(data, 256, // pointer, stride
-				  0, 128, 256, 128, // coordinates
-				  0xff, 0x00, 0x00, 0xff // RGBA
-				);
- 			draw_line(data, 256, // pointer, stride
-				  0, 64, 256, 64, // coordinates
-				  0xff, 0x00, 0x00, 0xff // RGBA
-				);
- 			draw_line(data, 256, // pointer, stride
-				  0, 192, 256, 192, // coordinates
-				  0xff, 0x00, 0x00, 0xff // RGBA
-				);
- 			draw_line(data, 256, // pointer, stride
-				  128, 0, 128, 256, // coordinates
-				  0x00, 0xff, 0x00, 0xff // RGBA
-				);
- 			draw_line(data, 256, // pointer, stride
-				  64, 0, 64, 256, // coordinates
-				  0x00, 0xff, 0x00, 0xff // RGBA
-				);
- 			draw_line(data, 256, // pointer, stride
-				  192, 0, 192, 256, // coordinates
-				  0x00, 0xff, 0x00, 0xff // RGBA
-				);
-
-			vgImageSubData(test_image, data, 0, VG_sRGBA_8888, 0, 0, 256, 256);
-			KAMOFLAGE_ERROR("test image initialized.\n");
-		}
 	}
 
 	static void print_timing() {
@@ -3024,22 +2906,6 @@ extern "C" {
 		KammoGUI::GnuVGCanvas *cnv =
 			(KammoGUI::GnuVGCanvas *)nativeID;
 		cnv->step(env);
-
-		// rotate image matrix
-		static VGfloat angle = 0.0f;
-		vgSeti(VG_MATRIX_MODE,
-		       VG_MATRIX_IMAGE_USER_TO_SURFACE);
-		vgLoadIdentity();
-		vgTranslate(0.0f, 128.0f);
-		vgTranslate(128.0f, 128.0f);
-//		vgRotate(45.0f);
-		vgRotate(angle);
-		vgTranslate(-128.0f, -128.0f);
-		angle += 1.0f;
-
-		// render image
-		vgGaussianBlur(VG_INVALID_HANDLE, test_image, 4.0, 4.0, VG_TILE_FILL);
-		//vgDrawImage(test_image);
 
 		print_timing();
 	}
