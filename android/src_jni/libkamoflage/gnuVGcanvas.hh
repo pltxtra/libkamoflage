@@ -158,6 +158,42 @@ namespace KammoGUI {
 
 	};
 
+	class GnuVG_feBlend : public GnuVG_feOperation {
+	public:
+		feBlendMode_t mode;
+		svg_filter_in_t in; int in_op_reference;
+		svg_filter_in_t in2; int in2_op_reference;
+
+		GnuVG_feBlend(
+			svg_length_t* _x, svg_length_t* _y,
+			svg_length_t* _width, svg_length_t* _height,
+			svg_filter_in_t _in, int _in_op_reference,
+			svg_filter_in_t _in2, int _in2_op_reference,
+			feBlendMode_t _mode
+			)
+			: GnuVG_feOperation(_x, _y, _width, _height)
+			, mode(_mode)
+			, in(_in), in_op_reference(_in_op_reference)
+			, in2(_in2), in2_op_reference(_in2_op_reference)
+			{
+		}
+
+		virtual VGImage execute(
+			VGImageAllocator* vgallocator,
+			std::vector<GnuVG_feOperation*> &fe_ops,
+			VGImage sourceGraphic, VGImage backgroundImage
+			);
+
+		virtual void recreate_expected_ref_count(std::vector<GnuVG_feOperation*> &fe_ops) {
+			++expected_ref_count;
+
+			if(in == in_Reference)
+				fe_ops[in_op_reference]->recreate_expected_ref_count(fe_ops);
+			if(in2 == in_Reference)
+				fe_ops[in2_op_reference]->recreate_expected_ref_count(fe_ops);
+		}
+	};
+
 	class GnuVG_feComposite : public GnuVG_feOperation {
 	public:
 		feCompositeOperator_t oprt;

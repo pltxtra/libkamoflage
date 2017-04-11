@@ -125,10 +125,60 @@ namespace KammoGUI {
 		}
 	}
 
+	VGImage GnuVG_feBlend::execute(
+		VGImageAllocator* vgallocator,
+		std::vector<GnuVG_feOperation*> &fe_ops,
+		VGImage sourceGraphic, VGImage backgroundImage
+		) {
+		auto img_1 = get_image(vgallocator, fe_ops,
+				       sourceGraphic, backgroundImage,
+				       in, in_op_reference);
+		auto img_2 = get_image(vgallocator, fe_ops,
+				       sourceGraphic, backgroundImage,
+				       in2, in2_op_reference);
+
+		auto retval = vgallocator->get_fresh_bitmap();
+
+		KAMOFLAGE_ERROR("feBlend::execute for %p, (%p, %p) -> %p\n",
+				this,
+				(void *)img_1, (void *)img_2,
+				(void *)retval);
+		KAMOFLAGE_ERROR("feBlend %p - %d, %d\n",
+				this,
+				ref_count, expected_ref_count);
+		gnuvgRenderToImage(retval);
+
+		vgSeti(VG_MATRIX_MODE,
+		       VG_MATRIX_IMAGE_USER_TO_SURFACE);
+		vgLoadIdentity();
+
+		int old_blend_mode = vgGeti(VG_BLEND_MODE);
+
+		switch(mode) {
+		case feBlend_normal:
+			vgSeti(VG_BLEND_MODE, VG_BLEND_SRC);
+			vgDrawImage(img_2);
+			vgSeti(VG_BLEND_MODE, VG_BLEND_SRC_OVER);
+			vgDrawImage(img_1);
+			break;
+		}
+			vgSeti(VG_BLEND_MODE, old_blend_mode);
+
+		KAMOFLAGE_ERROR("Restored blend mode: %d (should be %d)\n",
+				old_blend_mode, VG_BLEND_SRC_OVER);
+
+		recycle_image(vgallocator, fe_ops,
+			      in2, in2_op_reference);
+		recycle_image(vgallocator, fe_ops,
+			      in, in_op_reference);
+
+		return retval;
+	}
+
 	VGImage GnuVG_feComposite::execute(
-			VGImageAllocator* vgallocator,
-			std::vector<GnuVG_feOperation*> &fe_ops,
-			VGImage sourceGraphic, VGImage backgroundImage
+		VGImageAllocator* vgallocator,
+		std::vector<GnuVG_feOperation*> &fe_ops,
+		VGImage sourceGraphic, VGImage backgroundImage
 		) {
 		auto img_1 = get_image(vgallocator, fe_ops,
 				       sourceGraphic, backgroundImage,
@@ -147,15 +197,38 @@ namespace KammoGUI {
 				this,
 				ref_count, expected_ref_count);
 		gnuvgRenderToImage(retval);
+
 		vgSeti(VG_MATRIX_MODE,
 		       VG_MATRIX_IMAGE_USER_TO_SURFACE);
 		vgLoadIdentity();
 
 		int old_blend_mode = vgGeti(VG_BLEND_MODE);
-		vgSeti(VG_BLEND_MODE, VG_BLEND_SRC);
-		vgDrawImage(img_2);
-		vgSeti(VG_BLEND_MODE, VG_BLEND_SRC_IN);
-		vgDrawImage(img_1);
+
+		switch(oprt) {
+		case feComposite_in:
+			vgSeti(VG_BLEND_MODE, VG_BLEND_SRC);
+			vgDrawImage(img_2);
+			vgSeti(VG_BLEND_MODE, VG_BLEND_SRC_IN);
+			vgDrawImage(img_1);
+			break;
+
+		case feComposite_out:
+//			xxx implement med color conversion matrix to invert dst alpha values first
+			break;
+
+
+		case feComposite_over:
+			vgSeti(VG_BLEND_MODE, VG_BLEND_SRC);
+			vgDrawImage(img_2);
+			vgSeti(VG_BLEND_MODE, VG_BLEND_SRC_OVER);
+			vgDrawImage(img_1);
+			break;
+
+		case feComposite_atop:
+//			tricky
+			break;
+		}
+
 		vgSeti(VG_BLEND_MODE, old_blend_mode);
 
 		KAMOFLAGE_ERROR("Restored blend mode: %d (should be %d)\n",
@@ -259,7 +332,7 @@ namespace KammoGUI {
 		vgSeti(VG_MATRIX_MODE,
 		       VG_MATRIX_IMAGE_USER_TO_SURFACE);
 		vgLoadIdentity();
-		vgTranslate(dx, dy);
+		vgTranslate(dx, -dy);
 
 		VGint w, h;
 		w = vgGetParameteri(retval, VG_IMAGE_WIDTH);
@@ -2101,6 +2174,17 @@ namespace KammoGUI {
 		svg_filter_in_t in2, int in2_op_reference,
 		feBlendMode_t mode)
 	{
+		GnuVGCanvas::SVGDocument* context = (GnuVGCanvas::SVGDocument*)closure;
+		if(auto cf = context->state->current_filter) {
+			auto op = new GnuVG_feBlend(
+				x, y,
+				width, height,
+				in, in_op_reference,
+				in2, in2_op_reference,
+				mode);
+			cf->add_operation(op);
+		}
+
 		return SVG_STATUS_SUCCESS;
 	}
 
