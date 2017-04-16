@@ -376,60 +376,6 @@ namespace KammoGUI {
 			HORIZONTAL_DIMENSION, VERTICAL_DIMENSION
 		};
 
-		// class MotionEvent is modelled after the MotionEvent
-		// class available in Android and is semi-compatible
-		class MotionEvent {
-		public:
-			enum motionEvent_t {
-				ACTION_CANCEL,
-				ACTION_DOWN,
-				ACTION_MOVE,
-				ACTION_OUTSIDE,
-				ACTION_POINTER_DOWN,
-				ACTION_POINTER_UP,
-				ACTION_UP
-			};
-		private:
-			long down_time, event_time;
-			motionEvent_t action;
-			int action_index; // which index is responsible for the action
-			int pointer_count; // maximum 16
-			int pointer_id[16];
-			float pointer_x[16];
-			float pointer_y[16];
-			float pointer_pressure[16];
-			float raw_x, raw_y;
-
-		public:
-			void init(long downTime, long eventTime, motionEvent_t action, int pointerCount, int actionIndex, float rawX, float rawY);
-			void clone(const MotionEvent &source);
-
-			// each pointer will have the same id between different motion events, from the time they are POINTER_DOWN
-			// to the time they are POINTER_UP. However, because pointers may come and go (go DOWN or UP) the index
-			// between different events may change. (in one event you might have three pointers, while only two of them
-			// are left in the following..)
-			void init_pointer(int index, int id, float x, float y, float pressure);
-
-			long get_down_time() const;
-			long get_event_time()  const;
-
-			motionEvent_t get_action() const;
-			int get_action_index() const;
-
-			float get_x() const;
-			float get_y() const;
-			float get_pressure() const;
-			float get_x(int index) const;
-			float get_y(int index) const;
-			float get_pressure(int index) const;
-
-			float get_raw_x() const;
-			float get_raw_y() const;
-
-			int get_pointer_count() const;
-			int get_pointer_id(int index) const;
-		};
-
 		class SVGMatrix {
 		public:
 			SVGMatrix();

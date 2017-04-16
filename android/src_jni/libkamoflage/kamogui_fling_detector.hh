@@ -25,7 +25,7 @@ namespace KammoGUI {
 	private:
 		static float fling_limit;
 		static bool fling_limit_set;
-		
+
 		int fingers, max_fingers;
 		int last_x, last_y;
 
@@ -36,12 +36,12 @@ namespace KammoGUI {
 
 		void start_fling_detect(int x, int y);
 		bool test_for_fling(int x, int y);
-		
+
 	public:
 		FlingGestureDetector();
 
 		// returns true if a fling was detected
-		bool on_touch_event(const KammoGUI::SVGCanvas::MotionEvent &event);
+		bool on_touch_event(const KammoGUI::MotionEvent &event);
 
 		// returns the fling speed vector (pixels / second)
 		void get_speed(float &speed_x, float &speed_y);

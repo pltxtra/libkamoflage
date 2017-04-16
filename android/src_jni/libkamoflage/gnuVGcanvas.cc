@@ -71,10 +71,10 @@ namespace KammoGUI {
  *************************/
 
 	void GnuVG_feOperation::unref_result(VGImageAllocator* vgallocator) {
-		KAMOFLAGE_ERROR("feOperation::unref_result() for %p => %d\n",
+		KAMOFLAGE_DEBUG("feOperation::unref_result() for %p => %d\n",
 				this, ref_count);
 		if((--ref_count) == 0) {
-			KAMOFLAGE_ERROR("feOperation for %p will recycle %p...\n",
+			KAMOFLAGE_DEBUG("feOperation for %p will recycle %p...\n",
 					this, (void *)result);
 			vgallocator->recycle_bitmap(result);
 			result = VG_INVALID_HANDLE;
@@ -90,15 +90,15 @@ namespace KammoGUI {
 		switch(in) {
 
 		case in_SourceGraphic:
-			KAMOFLAGE_ERROR("get SourceGraphic\n");
+			KAMOFLAGE_DEBUG("get SourceGraphic\n");
 			return sourceGraphic;
 		case in_BackgroundGraphic:
-			KAMOFLAGE_ERROR("get BackgroundGraphic\n");
+			KAMOFLAGE_DEBUG("get BackgroundGraphic\n");
 			return backgroundImage;
 
 		case in_Reference:
-			KAMOFLAGE_ERROR("get graphic by reference. %p\n",
-				fe_ops[in_op_reference]);
+			KAMOFLAGE_DEBUG("get graphic by reference. %p\n",
+					fe_ops[in_op_reference]);
 			return fe_ops[in_op_reference]->get_result(
 				vgallocator,
 				fe_ops,
@@ -119,9 +119,9 @@ namespace KammoGUI {
 		std::vector<GnuVG_feOperation*> &fe_ops,
 		svg_filter_in_t in, int in_op_reference) {
 		if(in == in_Reference) {
-			KAMOFLAGE_ERROR("Recycle by reference... %p\n",
-				fe_ops[in_op_reference]);
-				fe_ops[in_op_reference]->unref_result(vgallocator);
+			KAMOFLAGE_DEBUG("Recycle by reference... %p\n",
+					fe_ops[in_op_reference]);
+			fe_ops[in_op_reference]->unref_result(vgallocator);
 		}
 	}
 
@@ -139,11 +139,11 @@ namespace KammoGUI {
 
 		auto retval = vgallocator->get_fresh_bitmap();
 
-		KAMOFLAGE_ERROR("feBlend::execute for %p, (%p, %p) -> %p\n",
+		KAMOFLAGE_DEBUG("feBlend::execute for %p, (%p, %p) -> %p\n",
 				this,
 				(void *)img_1, (void *)img_2,
 				(void *)retval);
-		KAMOFLAGE_ERROR("feBlend %p - %d, %d\n",
+		KAMOFLAGE_DEBUG("feBlend %p - %d, %d\n",
 				this,
 				ref_count, expected_ref_count);
 		gnuvgRenderToImage(retval);
@@ -164,7 +164,7 @@ namespace KammoGUI {
 		}
 			vgSeti(VG_BLEND_MODE, old_blend_mode);
 
-		KAMOFLAGE_ERROR("Restored blend mode: %d (should be %d)\n",
+		KAMOFLAGE_DEBUG("Restored blend mode: %d (should be %d)\n",
 				old_blend_mode, VG_BLEND_SRC_OVER);
 
 		recycle_image(vgallocator, fe_ops,
@@ -189,11 +189,11 @@ namespace KammoGUI {
 
 		auto retval = vgallocator->get_fresh_bitmap();
 
-		KAMOFLAGE_ERROR("feCompiste::execute for %p, (%p, %p) -> %p\n",
+		KAMOFLAGE_DEBUG("feCompiste::execute for %p, (%p, %p) -> %p\n",
 				this,
 				(void *)img_1, (void *)img_2,
 				(void *)retval);
-		KAMOFLAGE_ERROR("feComposite %p - %d, %d\n",
+		KAMOFLAGE_DEBUG("feComposite %p - %d, %d\n",
 				this,
 				ref_count, expected_ref_count);
 		gnuvgRenderToImage(retval);
@@ -231,7 +231,7 @@ namespace KammoGUI {
 
 		vgSeti(VG_BLEND_MODE, old_blend_mode);
 
-		KAMOFLAGE_ERROR("Restored blend mode: %d (should be %d)\n",
+		KAMOFLAGE_DEBUG("Restored blend mode: %d (should be %d)\n",
 				old_blend_mode, VG_BLEND_SRC_OVER);
 
 		recycle_image(vgallocator, fe_ops,
@@ -248,7 +248,7 @@ namespace KammoGUI {
 		VGImage sourceGraphic, VGImage backgroundImage
 		) {
 		auto retval = vgallocator->get_fresh_bitmap();
-		KAMOFLAGE_ERROR("feFlood::execute for %p to %p\n",
+		KAMOFLAGE_DEBUG("feFlood::execute for %p to %p\n",
 				(void *)this,
 				(void *)retval);
 
@@ -262,14 +262,14 @@ namespace KammoGUI {
 		h = vgGetParameteri(retval, VG_IMAGE_HEIGHT);
 
 		if(color.is_current_color)
-			KAMOFLAGE_ERROR("GnuVG_feFlood does not implement support for current color.");
+			KAMOFLAGE_DEBUG("GnuVG_feFlood does not implement support for current color.");
 
-		KAMOFLAGE_ERROR("feFlood(%d, %d) => %f, %f, %f, %f\n",
-			    w, h,
-			    clear_color[0],
-			    clear_color[1],
-			    clear_color[2],
-			    clear_color[3]
+		KAMOFLAGE_DEBUG("feFlood(%d, %d) => %f, %f, %f, %f\n",
+				w, h,
+				clear_color[0],
+				clear_color[1],
+				clear_color[2],
+				clear_color[3]
 			);
 
 		vgSetfv(VG_CLEAR_COLOR, 4, clear_color);
@@ -283,7 +283,7 @@ namespace KammoGUI {
 			std::vector<GnuVG_feOperation*> &fe_ops,
 			VGImage sourceGraphic, VGImage backgroundImage
 		) {
-		KAMOFLAGE_ERROR("feGaussianBlur::execute\n");
+		KAMOFLAGE_DEBUG("feGaussianBlur::execute\n");
 		auto img_1 = get_image(vgallocator, fe_ops,
 				       sourceGraphic, backgroundImage,
 				       in, in_op_reference);
@@ -300,8 +300,8 @@ namespace KammoGUI {
 		h = vgGetParameteri(retval, VG_IMAGE_HEIGHT);
 
 		VGfloat clear_color[] = {0.0f, 0.0f, 0.0f, 0.0f};
-		KAMOFLAGE_ERROR("feGaussianBlur(%d, %d)\n",
-			    w, h
+		KAMOFLAGE_DEBUG("feGaussianBlur(%d, %d)\n",
+				w, h
 			);
 		vgSetfv(VG_CLEAR_COLOR, 4, clear_color);
 		vgClear(0, 0, w, h);
@@ -321,7 +321,7 @@ namespace KammoGUI {
 		std::vector<GnuVG_feOperation*> &fe_ops,
 		VGImage sourceGraphic, VGImage backgroundImage
 		) {
-		KAMOFLAGE_ERROR("feOffset::execute\n");
+		KAMOFLAGE_DEBUG("feOffset::execute\n");
 		auto img_1 = get_image(vgallocator, fe_ops,
 				       sourceGraphic, backgroundImage,
 				       in, in_op_reference);
@@ -339,7 +339,7 @@ namespace KammoGUI {
 		h = vgGetParameteri(retval, VG_IMAGE_HEIGHT);
 
 		VGfloat clear_color[] = {0.0f, 0.0f, 0.0f, 0.0f};
-		KAMOFLAGE_ERROR("feOffset(%d, %d)\n",
+		KAMOFLAGE_DEBUG("feOffset(%d, %d)\n",
 			    w, h
 			);
 		vgSetfv(VG_CLEAR_COLOR, 4, clear_color);
@@ -362,8 +362,8 @@ namespace KammoGUI {
 			auto old_target = gnuvgGetRenderTarget();
 			auto cleanup = finally(
 				[old_target] {
-					KAMOFLAGE_ERROR("Render filter to old target: %p\n",
-						    (void *)old_target);
+					KAMOFLAGE_DEBUG("Render filter to old target: %p\n",
+							(void *)old_target);
 					gnuvgRenderToImage(old_target);
 				}
 				);
@@ -378,7 +378,7 @@ namespace KammoGUI {
 					sourceGraphic, backgroundImage
 					);
 				last_operation->result = VG_INVALID_HANDLE;
-				KAMOFLAGE_ERROR("Result from last_operation %p is %p\n",
+				KAMOFLAGE_DEBUG("Result from last_operation %p is %p\n",
 						last_operation, (void *)result);
 				return result;
 			}
@@ -391,7 +391,7 @@ namespace KammoGUI {
  *   MotionEvent implementation
  *
  *************************/
-	void GnuVGCanvas::MotionEvent::init(long _downTime,
+	void MotionEvent::init(long _downTime,
 					    long _eventTime,
 					    motionEvent_t _action,
 					    int _pointerCount, int _actionIndex,
@@ -404,7 +404,7 @@ namespace KammoGUI {
 		raw_x = rawX;
 		raw_y = rawY;
 	}
-	void GnuVGCanvas::MotionEvent::clone(const MotionEvent &source) {
+	void MotionEvent::clone(const MotionEvent &source) {
 		init(source.get_down_time(),
 		     source.get_event_time(),
 		     source.get_action(),
@@ -419,7 +419,7 @@ namespace KammoGUI {
 		}
 	}
 
-	void GnuVGCanvas::MotionEvent::init_pointer(int index, int id, float x, float y, float pressure)  {
+	void MotionEvent::init_pointer(int index, int id, float x, float y, float pressure)  {
 		if(index >= pointer_count) return;
 		pointer_id[index] = id;
 		pointer_x[index] = x;
@@ -427,62 +427,62 @@ namespace KammoGUI {
 		pointer_pressure[index] = pressure;
 	}
 
-	long GnuVGCanvas::MotionEvent::get_down_time() const {
+	long MotionEvent::get_down_time() const {
 		return down_time;
 	}
 
-	long GnuVGCanvas::MotionEvent::get_event_time() const {
+	long MotionEvent::get_event_time() const {
 		return event_time;
 	}
 
-	GnuVGCanvas::MotionEvent::motionEvent_t GnuVGCanvas::MotionEvent::get_action() const {
+	MotionEvent::motionEvent_t MotionEvent::get_action() const {
 		return action;
 	}
 
-	int GnuVGCanvas::MotionEvent::get_action_index() const {
+	int MotionEvent::get_action_index() const {
 		return action_index;
 	}
 
-	float GnuVGCanvas::MotionEvent::get_x() const {
+	float MotionEvent::get_x() const {
 		return pointer_x[action_index];
 	}
 
-	float GnuVGCanvas::MotionEvent::get_y() const {
+	float MotionEvent::get_y() const {
 		return pointer_y[action_index];
 	}
 
-	float GnuVGCanvas::MotionEvent::get_pressure() const {
+	float MotionEvent::get_pressure() const {
 		return pointer_pressure[action_index];
 	}
 
-	float GnuVGCanvas::MotionEvent::get_x(int index) const {
+	float MotionEvent::get_x(int index) const {
 		if(index >= pointer_count) return 0.0f;
 		return pointer_x[index];
 	}
 
-	float GnuVGCanvas::MotionEvent::get_y(int index) const {
+	float MotionEvent::get_y(int index) const {
 		if(index >= pointer_count) return 0.0f;
 		return pointer_y[index];
 	}
 
-	float GnuVGCanvas::MotionEvent::get_pressure(int index) const {
+	float MotionEvent::get_pressure(int index) const {
 		if(index >= pointer_count) return 0.0f;
 		return pointer_pressure[index];
 	}
 
-	float GnuVGCanvas::MotionEvent::get_raw_x() const {
+	float MotionEvent::get_raw_x() const {
 		return raw_x;
 	}
 
-	float GnuVGCanvas::MotionEvent::get_raw_y() const {
+	float MotionEvent::get_raw_y() const {
 		return raw_y;
 	}
 
-	int GnuVGCanvas::MotionEvent::get_pointer_count() const {
+	int MotionEvent::get_pointer_count() const {
 		return pointer_count;
 	}
 
-	int GnuVGCanvas::MotionEvent::get_pointer_id(int index) const {
+	int MotionEvent::get_pointer_id(int index) const {
 		if(index >= pointer_count) return 0;
 		return pointer_id[index];
 	}
@@ -790,7 +790,7 @@ namespace KammoGUI {
 		svg_element_enable_events(element);
 	}
 
-	void GnuVGCanvas::ElementReference::trigger_event_handler(const GnuVGCanvas::MotionEvent &event) {
+	void GnuVGCanvas::ElementReference::trigger_event_handler(const MotionEvent &event) {
 		event_handler(source, this, event);
 	}
 
@@ -978,7 +978,7 @@ namespace KammoGUI {
 
 	void GnuVGCanvas::SVGDocument::start_animation(KammoGUI::Animation *new_animation) {
 		if(new_animation != NULL) {
-			KAMOFLAGE_ERROR("start_new animation: %p (%p)\n", new_animation, &animations);
+			KAMOFLAGE_DEBUG("start_new animation: %p (%p)\n", new_animation, &animations);
 			animations.insert(new_animation);
 			new_animation->start();
 		}
@@ -1026,6 +1026,8 @@ namespace KammoGUI {
 	GnuVGCanvas::SVGDocument::SVGDocument(GnuVGCanvas* _parent)
 		: parent(_parent)
 	{
+		KAMOFLAGE_ERROR("Will tell gnuVG to use context from parent(%p)->%p\n",
+				parent, (void *)(parent == NULL ? nullptr : (void *)parent->gnuVGctx));
 		gnuvgUseContext(parent->gnuVGctx);
 
 		stack_push(); // push initial state
@@ -1363,7 +1365,7 @@ namespace KammoGUI {
 			vgSetfv(VG_CLEAR_COLOR, 4, clearColor);
 			vgClear(0, 0, w, h);
 
-			KAMOFLAGE_ERROR("   cleared new render target: %p\n",
+			KAMOFLAGE_DEBUG("   cleared new render target: %p\n",
 					(void *)state->current_bitmap);
 		}
 	}
@@ -1371,7 +1373,7 @@ namespace KammoGUI {
 	void GnuVGCanvas::SVGDocument::pop_current_bitmap() {
 		if(state->current_bitmap != state->previous_bitmap) {
 			gnuvgRenderToImage(state->previous_bitmap);
-			KAMOFLAGE_ERROR("   reverted to previous render target: %p\n",
+			KAMOFLAGE_DEBUG("   reverted to previous render target: %p\n",
 					(void *)state->previous_bitmap);
 		}
 	}
@@ -1448,17 +1450,17 @@ namespace KammoGUI {
 		state = state_stack.back();
 
 		if(previous_bitmap != current_bitmap) {
-			KAMOFLAGE_ERROR(" will render %p into %p.\n",
+			KAMOFLAGE_DEBUG(" will render %p into %p.\n",
 					(void *)current_bitmap, (void *)previous_bitmap);
 
 			if(previous_filter) {
-				KAMOFLAGE_ERROR(" will render filter...\n");
+				KAMOFLAGE_DEBUG(" will render filter...\n");
 				auto filtered_bitmap = previous_filter->execute(
 					this,
 					current_bitmap,
 					VG_INVALID_HANDLE
 					);
-				KAMOFLAGE_ERROR("  filter generated: %p\n",
+				KAMOFLAGE_DEBUG("  filter generated: %p\n",
 						(void *)filtered_bitmap);
 				if(filtered_bitmap != VG_INVALID_HANDLE) {
 					recycle_bitmap(current_bitmap);
@@ -1821,7 +1823,7 @@ namespace KammoGUI {
 		}
 
 		context->stack_push(current_bitmap, opacity);
-		KAMOFLAGE_ERROR(" --- begin group called. (state is %p)\n", context->state);
+		KAMOFLAGE_DEBUG(" --- begin group called. (state is %p)\n", context->state);
 
 		return SVG_STATUS_SUCCESS;
 	}
@@ -1831,14 +1833,14 @@ namespace KammoGUI {
 
 		context->stack_push();
 
-		KAMOFLAGE_ERROR(" --- begin element called. (state is %p)\n", context->state);
+		KAMOFLAGE_DEBUG(" --- begin element called. (state is %p)\n", context->state);
 		return SVG_STATUS_SUCCESS;
 	}
 
 	svg_status_t GnuVGCanvas::SVGDocument::end_element(void* closure) {
 		GnuVGCanvas::SVGDocument* context = (GnuVGCanvas::SVGDocument*)closure;
 
-		KAMOFLAGE_ERROR(" --- end element called. (state is %p)\n", context->state);
+		KAMOFLAGE_DEBUG(" --- end element called. (state is %p)\n", context->state);
 		context->stack_pop();
 
 		return SVG_STATUS_SUCCESS;
@@ -1847,7 +1849,7 @@ namespace KammoGUI {
 	svg_status_t GnuVGCanvas::SVGDocument::end_group(void* closure, double opacity) {
 		GnuVGCanvas::SVGDocument* context = (GnuVGCanvas::SVGDocument*)closure;
 
-		KAMOFLAGE_ERROR(" --- end group called. (state is %p)\n", context->state);
+		KAMOFLAGE_DEBUG(" --- end group called. (state is %p)\n", context->state);
 		context->stack_pop();
 
 		return SVG_STATUS_SUCCESS;
@@ -2134,7 +2136,7 @@ namespace KammoGUI {
 		auto found = context->filters.find(id);
 		if(found != context->filters.end()) {
 			context->state->current_filter = (*found).second;
-			KAMOFLAGE_ERROR(" --- set filter called.\n");
+			KAMOFLAGE_DEBUG(" --- set filter called.\n");
 
 			if(context->state->current_bitmap == context->state->previous_bitmap) {
 				context->state->current_bitmap = context->get_fresh_bitmap();
@@ -2434,7 +2436,7 @@ namespace KammoGUI {
 
 		VGPath this_path;
 		if((*path_cache) == NULL) {
-			KAMOFLAGE_ERROR("Creating new OpenVG path object...\n");
+			KAMOFLAGE_DEBUG("Creating new OpenVG path object...\n");
 			this_path = vgCreatePath(VG_PATH_FORMAT_STANDARD, VG_PATH_DATATYPE_F,
 						 1,0,0,0, VG_PATH_CAPABILITY_ALL);
 
@@ -2485,7 +2487,7 @@ namespace KammoGUI {
 
 		context->fetch_gnuvg_boundingbox();
 
-		KAMOFLAGE_ERROR("Rendered an ellipse.\n");
+		KAMOFLAGE_DEBUG("Rendered an ellipse.\n");
 
 		return SVG_STATUS_SUCCESS;
 	}
@@ -2711,8 +2713,8 @@ namespace KammoGUI {
 	}
 
 	void GnuVGCanvas::step(JNIEnv *env) {
-		usleep(1000000);
-		KAMOFLAGE_ERROR("\n\n\n::step() new frame\n");
+//		usleep(1000000);
+		KAMOFLAGE_DEBUG("\n\n\n::step() new frame\n");
 
 		GNUVG_APPLY_PROFILER_GUARD(full_frame);
 		{
@@ -2794,7 +2796,7 @@ namespace KammoGUI {
 			document->process_touch_for_animations();
 		}
 		switch(m_evt.get_action()) {
-		case GnuVGCanvas::MotionEvent::ACTION_DOWN:
+		case MotionEvent::ACTION_DOWN:
 		{
 			svg_element_t *element = NULL;
 
@@ -2819,12 +2821,12 @@ namespace KammoGUI {
 				active_element = NULL;
 		}
 		break;
-		case GnuVGCanvas::MotionEvent::ACTION_CANCEL:
-		case GnuVGCanvas::MotionEvent::ACTION_MOVE:
-		case GnuVGCanvas::MotionEvent::ACTION_OUTSIDE:
-		case GnuVGCanvas::MotionEvent::ACTION_POINTER_DOWN:
-		case GnuVGCanvas::MotionEvent::ACTION_POINTER_UP:
-		case GnuVGCanvas::MotionEvent::ACTION_UP:
+		case MotionEvent::ACTION_CANCEL:
+		case MotionEvent::ACTION_MOVE:
+		case MotionEvent::ACTION_OUTSIDE:
+		case MotionEvent::ACTION_POINTER_DOWN:
+		case MotionEvent::ACTION_POINTER_UP:
+		case MotionEvent::ACTION_UP:
 			break;
 		}
 
@@ -2832,14 +2834,14 @@ namespace KammoGUI {
 			active_element->trigger_event_handler(m_evt);
 
 			switch(m_evt.get_action()) {
-			case GnuVGCanvas::MotionEvent::ACTION_POINTER_DOWN:
-			case GnuVGCanvas::MotionEvent::ACTION_MOVE:
-			case GnuVGCanvas::MotionEvent::ACTION_DOWN:
-			case GnuVGCanvas::MotionEvent::ACTION_OUTSIDE:
-			case GnuVGCanvas::MotionEvent::ACTION_POINTER_UP:
+			case MotionEvent::ACTION_POINTER_DOWN:
+			case MotionEvent::ACTION_MOVE:
+			case MotionEvent::ACTION_DOWN:
+			case MotionEvent::ACTION_OUTSIDE:
+			case MotionEvent::ACTION_POINTER_UP:
 				break;
-			case GnuVGCanvas::MotionEvent::ACTION_CANCEL:
-			case GnuVGCanvas::MotionEvent::ACTION_UP:
+			case MotionEvent::ACTION_CANCEL:
+			case MotionEvent::ACTION_UP:
 				active_element = NULL;
 				break;
 			}

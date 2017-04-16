@@ -57,14 +57,14 @@ KammoGUI::ScaleGestureDetector::ScaleGestureDetector(OnScaleGestureListener *lis
         mEdgeSlop = KammoGUI::DisplayConfiguration::get_edge_slop();
 }
 
-bool KammoGUI::ScaleGestureDetector::on_touch_event(const KammoGUI::SVGCanvas::MotionEvent &event) {
+bool KammoGUI::ScaleGestureDetector::on_touch_event(const KammoGUI::MotionEvent &event) {
         int action = event.get_action();
         bool handled = true;
 
         if (!mGestureInProgress) {
 		handled = false;
 		switch (action) {
-		case KammoGUI::SVGCanvas::MotionEvent::ACTION_POINTER_DOWN: {
+		case KammoGUI::MotionEvent::ACTION_POINTER_DOWN: {
 			// We have a new multi-finger gesture
 
 			// as orientation can change, query the metrics in touch down
@@ -79,7 +79,7 @@ bool KammoGUI::ScaleGestureDetector::on_touch_event(const KammoGUI::SVGCanvas::M
 
 			set_context(event);
 
-#ifdef SCALE_DETECTOR_DO_SLOPPY_CHECK 
+#ifdef SCALE_DETECTOR_DO_SLOPPY_CHECK
 			// Check if we have a sloppy gesture. If so, delay
 			// the beginning of the gesture until we're sure that's
 			// what the user wanted. Sloppy gestures can happen if the
@@ -121,8 +121,8 @@ bool KammoGUI::ScaleGestureDetector::on_touch_event(const KammoGUI::SVGCanvas::M
 					mSloppyGesture ? "true" : "false");
 		}
 			break;
-            
-		case KammoGUI::SVGCanvas::MotionEvent::ACTION_MOVE:
+
+		case KammoGUI::MotionEvent::ACTION_MOVE:
 			if (mSloppyGesture) {
 				// Initiate sloppy gestures if we've moved outside of the slop area.
 				float edgeSlop = mEdgeSlop;
@@ -137,7 +137,7 @@ bool KammoGUI::ScaleGestureDetector::on_touch_event(const KammoGUI::SVGCanvas::M
 								      || x0 > rightSlop || y0 > bottomSlop;
 				bool p1sloppy = x1 < edgeSlop || y1 < edgeSlop
 								      || x1 > rightSlop || y1 > bottomSlop;
-				
+
 				if(p0sloppy && p1sloppy) {
 					mFocusX = -1;
 					mFocusY = -1;
@@ -153,8 +153,8 @@ bool KammoGUI::ScaleGestureDetector::on_touch_event(const KammoGUI::SVGCanvas::M
 				}
 			}
 			break;
-                
-		case KammoGUI::SVGCanvas::MotionEvent::ACTION_POINTER_UP:
+
+		case KammoGUI::MotionEvent::ACTION_POINTER_UP:
 			if (mSloppyGesture) {
 				// Set focus point to the remaining finger
 				int id = event.get_action_index() == 0 ? 1 : 0;
@@ -166,7 +166,7 @@ bool KammoGUI::ScaleGestureDetector::on_touch_event(const KammoGUI::SVGCanvas::M
         } else {
 		// Transform gesture in progress - attempt to handle it
 		switch (action) {
-                case KammoGUI::SVGCanvas::MotionEvent::ACTION_POINTER_UP:
+                case KammoGUI::MotionEvent::ACTION_POINTER_UP:
 			// Gesture ended
 			set_context(event);
 
@@ -176,7 +176,7 @@ bool KammoGUI::ScaleGestureDetector::on_touch_event(const KammoGUI::SVGCanvas::M
 				mFocusX = event.get_x(id);
 				mFocusY = event.get_y(id);
 			}
-			
+
 			if (!mSloppyGesture) {
 				mListener->on_scale_end(this);
 			}
@@ -184,7 +184,7 @@ bool KammoGUI::ScaleGestureDetector::on_touch_event(const KammoGUI::SVGCanvas::M
 			reset();
 			break;
 
-                case KammoGUI::SVGCanvas::MotionEvent::ACTION_CANCEL:
+                case KammoGUI::MotionEvent::ACTION_CANCEL:
 			if (!mSloppyGesture) {
 				mListener->on_scale_end(this);
 			}
@@ -192,7 +192,7 @@ bool KammoGUI::ScaleGestureDetector::on_touch_event(const KammoGUI::SVGCanvas::M
 			reset();
 			break;
 
-                case KammoGUI::SVGCanvas::MotionEvent::ACTION_MOVE:
+                case KammoGUI::MotionEvent::ACTION_MOVE:
 			set_context(event);
 
 			// Only accept the event if our relative pressure is within
@@ -210,18 +210,18 @@ bool KammoGUI::ScaleGestureDetector::on_touch_event(const KammoGUI::SVGCanvas::M
         }
         return handled;
 }
-    
-float KammoGUI::ScaleGestureDetector::get_raw_x(const KammoGUI::SVGCanvas::MotionEvent &event, int pointerIndex) {
+
+float KammoGUI::ScaleGestureDetector::get_raw_x(const KammoGUI::MotionEvent &event, int pointerIndex) {
         float offset = event.get_x() - event.get_raw_x();
         return event.get_x(pointerIndex) + offset;
 }
-    
-float KammoGUI::ScaleGestureDetector::get_raw_y(const KammoGUI::SVGCanvas::MotionEvent &event, int pointerIndex) {
+
+float KammoGUI::ScaleGestureDetector::get_raw_y(const KammoGUI::MotionEvent &event, int pointerIndex) {
         float offset = event.get_y() - event.get_raw_y();
         return event.get_y(pointerIndex) + offset;
 }
 
-void KammoGUI::ScaleGestureDetector::set_context(const KammoGUI::SVGCanvas::MotionEvent &curr) {
+void KammoGUI::ScaleGestureDetector::set_context(const KammoGUI::MotionEvent &curr) {
         mCurrEvent.clone(curr);
 
         mCurrLen = -1;
@@ -274,7 +274,7 @@ bool KammoGUI::ScaleGestureDetector::is_in_progress() {
  * remaining pointer on the screen.
  * If {@link #is_in_progress()} would return false, the result of this
  * function is undefined.
- * 
+ *
  * @return X coordinate of the focal point in pixels.
  */
 float KammoGUI::ScaleGestureDetector::get_focus_x() {
@@ -289,7 +289,7 @@ float KammoGUI::ScaleGestureDetector::get_focus_x() {
  * remaining pointer on the screen.
  * If {@link #is_in_progress()} would return false, the result of this
  * function is undefined.
- * 
+ *
  * @return Y coordinate of the focal point in pixels.
  */
 float KammoGUI::ScaleGestureDetector::get_focus_y() {
@@ -299,7 +299,7 @@ float KammoGUI::ScaleGestureDetector::get_focus_y() {
 /**
  * Return the current distance between the two pointers forming the
  * gesture in progress.
- * 
+ *
  * @return Distance between pointers in pixels.
  */
 float KammoGUI::ScaleGestureDetector::get_current_span() {
@@ -314,7 +314,7 @@ float KammoGUI::ScaleGestureDetector::get_current_span() {
 /**
  * Return the previous distance between the two pointers forming the
  * gesture in progress.
- * 
+ *
  * @return Previous distance between pointers in pixels.
  */
 float KammoGUI::ScaleGestureDetector::get_previous_span() {
@@ -330,7 +330,7 @@ float KammoGUI::ScaleGestureDetector::get_previous_span() {
  * Return the scaling factor from the previous scale event to the current
  * event. This value is defined as
  * ({@link #get_current_span()} / {@link #get_previous_span()}).
- * 
+ *
  * @return The current scaling factor.
  */
 float KammoGUI::ScaleGestureDetector::get_scale_factor() {
@@ -339,20 +339,20 @@ float KammoGUI::ScaleGestureDetector::get_scale_factor() {
         }
         return mScaleFactor;
 }
-    
+
 /**
  * Return the time difference in milliseconds between the previous
  * accepted scaling event and the current scaling event.
- * 
+ *
  * @return Time difference since the last scaling event in milliseconds.
  */
 long KammoGUI::ScaleGestureDetector::get_time_delta() {
         return mTimeDelta;
 }
-    
+
 /**
  * Return the event time of the current event being processed.
- * 
+ *
  * @return Current event time in milliseconds.
  */
 long KammoGUI::ScaleGestureDetector::get_event_time() {

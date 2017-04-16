@@ -46,7 +46,7 @@ namespace KammoGUI {
  * using the supplied {@link MotionEvent}s. The {@link OnScaleGestureListener}
  * callback will notify users when a particular gesture event has occurred.
  * This class should only be used with {@link MotionEvent}s reported via touch.
- * 
+ *
  * To use this class:
  * <ul>
  *  <li>Create an instance of the {@code ScaleGestureDetector} for your
@@ -63,7 +63,7 @@ namespace KammoGUI {
 		 * If you want to listen for all the different gestures then implement
 		 * this interface. If you only want to listen for a subset it might
 		 * be easier to extend {@link SimpleOnScaleGestureListener}.
-		 * 
+		 *
 		 * An application will receive events in the following order:
 		 * <ul>
 		 *  <li>One {@link OnScaleGestureListener#onScaleBegin(ScaleGestureDetector)}
@@ -76,7 +76,7 @@ namespace KammoGUI {
 			/**
 			 * Responds to scaling events for a gesture in progress.
 			 * Reported by pointer motion.
-			 * 
+			 *
 			 * @param detector The detector reporting the event - use this to
 			 *          retrieve extended info about event state.
 			 * @return Whether or not the detector should consider this event
@@ -91,7 +91,7 @@ namespace KammoGUI {
 			/**
 			 * Responds to the beginning of a scaling gesture. Reported by
 			 * new pointers going down.
-			 * 
+			 *
 			 * @param detector The detector reporting the event - use this to
 			 *          retrieve extended info about event state.
 			 * @return Whether or not the detector should continue recognizing
@@ -105,23 +105,23 @@ namespace KammoGUI {
 			/**
 			 * Responds to the end of a scale gesture. Reported by existing
 			 * pointers going up.
-			 * 
+			 *
 			 * Once a scale has ended, {@link ScaleGestureDetector#get_focus_x()}
 			 * and {@link ScaleGestureDetector#get_focus_y()} will return the location
 			 * of the pointer remaining on the screen.
-			 * 
+			 *
 			 * @param detector The detector reporting the event - use this to
 			 *          retrieve extended info about event state.
 			 */
 			virtual void on_scale_end(ScaleGestureDetector *detector) = 0;
 		};
 
-	private:		
+	private:
 		OnScaleGestureListener *mListener;
 		bool mGestureInProgress;
 
-		KammoGUI::SVGCanvas::MotionEvent mPrevEvent;
-		KammoGUI::SVGCanvas::MotionEvent mCurrEvent;
+		KammoGUI::MotionEvent mPrevEvent;
+		KammoGUI::MotionEvent mCurrEvent;
 
 		float mFocusX;
 		float mFocusY;
@@ -136,22 +136,22 @@ namespace KammoGUI {
 		float mCurrPressure;
 		float mPrevPressure;
 		long mTimeDelta;
-    
+
 		float mEdgeSlop;
 		float mRightSlopEdge;
 		float mBottomSlopEdge;
 		bool mSloppyGesture;
 
-		static float get_raw_x(const KammoGUI::SVGCanvas::MotionEvent &event, int pointerIndex);
-		static float get_raw_y(const KammoGUI::SVGCanvas::MotionEvent &event, int pointerIndex);
-		void set_context(const KammoGUI::SVGCanvas::MotionEvent &curr);
+		static float get_raw_x(const KammoGUI::MotionEvent &event, int pointerIndex);
+		static float get_raw_y(const KammoGUI::MotionEvent &event, int pointerIndex);
+		void set_context(const KammoGUI::MotionEvent &curr);
 		void reset();
-		
+
 	public:
 		ScaleGestureDetector(OnScaleGestureListener *listener);
 
-		bool on_touch_event(const KammoGUI::SVGCanvas::MotionEvent &event);
-		
+		bool on_touch_event(const KammoGUI::MotionEvent &event);
+
 		/**
 		 * Returns {@code true} if a two-finger scale gesture is in progress.
 		 * @return {@code true} if a scale gesture is in progress, {@code false} otherwise.
@@ -166,7 +166,7 @@ namespace KammoGUI {
 		 * remaining pointer on the screen.
 		 * If {@link #is_in_progress()} would return false, the result of this
 		 * function is undefined.
-		 * 
+		 *
 		 * @return X coordinate of the focal point in pixels.
 		 */
 		float get_focus_x();
@@ -179,7 +179,7 @@ namespace KammoGUI {
 		 * remaining pointer on the screen.
 		 * If {@link #is_in_progress()} would return false, the result of this
 		 * function is undefined.
-		 * 
+		 *
 		 * @return Y coordinate of the focal point in pixels.
 		 */
 		float get_focus_y();
@@ -187,15 +187,15 @@ namespace KammoGUI {
 		/**
 		 * Return the current distance between the two pointers forming the
 		 * gesture in progress.
-		 * 
+		 *
 		 * @return Distance between pointers in pixels.
 		 */
 		float get_current_span();
-		
+
 		/**
 		 * Return the previous distance between the two pointers forming the
 		 * gesture in progress.
-		 * 
+		 *
 		 * @return Previous distance between pointers in pixels.
 		 */
 		float get_previous_span();
@@ -204,22 +204,22 @@ namespace KammoGUI {
 		 * Return the scaling factor from the previous scale event to the current
 		 * event. This value is defined as
 		 * ({@link #get_current_span()} / {@link #get_previous_span()}).
-		 * 
+		 *
 		 * @return The current scaling factor.
 		 */
 		float get_scale_factor();
-    
+
 		/**
 		 * Return the time difference in milliseconds between the previous
 		 * accepted scaling event and the current scaling event.
-		 * 
+		 *
 		 * @return Time difference since the last scaling event in milliseconds.
 		 */
 		long get_time_delta();
-    
+
 		/**
 		 * Return the event time of the current event being processed.
-		 * 
+		 *
 		 * @return Current event time in milliseconds.
 		 */
 		long get_event_time();

@@ -34,7 +34,7 @@ void KammoGUI::FlingGestureDetector::start_fling_detect(int x, int y) {
 		fling_limit = width_pixels / width_inches;
 		fling_limit_set = true;
 	}
-	
+
 	clock_gettime(CLOCK_MONOTONIC_RAW, &before);
 	last_x = x;
 	last_y = y;
@@ -56,7 +56,7 @@ bool KammoGUI::FlingGestureDetector::test_for_fling(int x, int y) {
 	/**** CALCULATE time VARIABLE *****/
 	struct timespec after;
 	clock_gettime(CLOCK_MONOTONIC_RAW, &after);
-	
+
 	after.tv_sec -= before.tv_sec;
 	after.tv_nsec -= before.tv_nsec;
 	if(after.tv_nsec < 0) {
@@ -77,34 +77,34 @@ bool KammoGUI::FlingGestureDetector::test_for_fling(int x, int y) {
 	   abs_speed_y > fling_limit)
 		return true;
 
-	return false;	
+	return false;
 }
 
-bool KammoGUI::FlingGestureDetector::on_touch_event(const KammoGUI::SVGCanvas::MotionEvent &event) {
+bool KammoGUI::FlingGestureDetector::on_touch_event(const KammoGUI::MotionEvent &event) {
 	switch(event.get_action()) {
 		break;
-	case KammoGUI::SVGCanvas::MotionEvent::ACTION_DOWN:
+	case KammoGUI::MotionEvent::ACTION_DOWN:
 		start_fling_detect(event.get_x(), event.get_y());
 		max_fingers = fingers = 1;
 		break;
-	case KammoGUI::SVGCanvas::MotionEvent::ACTION_MOVE:
+	case KammoGUI::MotionEvent::ACTION_MOVE:
 		// do nothing smart
 		break;
-	case KammoGUI::SVGCanvas::MotionEvent::ACTION_UP:
+	case KammoGUI::MotionEvent::ACTION_UP:
 		// compare to initial position/time only
 		return test_for_fling(event.get_x(), event.get_y());
 		break;
-	case KammoGUI::SVGCanvas::MotionEvent::ACTION_POINTER_DOWN:
+	case KammoGUI::MotionEvent::ACTION_POINTER_DOWN:
 		// increase finger count
 		fingers++;
 		if(fingers > max_fingers) max_fingers = fingers;
 		break;
-	case KammoGUI::SVGCanvas::MotionEvent::ACTION_POINTER_UP:
+	case KammoGUI::MotionEvent::ACTION_POINTER_UP:
 		// decrease finger count
 		fingers--;
 		break;
-	case KammoGUI::SVGCanvas::MotionEvent::ACTION_CANCEL:
-	case KammoGUI::SVGCanvas::MotionEvent::ACTION_OUTSIDE:
+	case KammoGUI::MotionEvent::ACTION_CANCEL:
+	case KammoGUI::MotionEvent::ACTION_OUTSIDE:
 		// cancel detection
 		break;
 	}

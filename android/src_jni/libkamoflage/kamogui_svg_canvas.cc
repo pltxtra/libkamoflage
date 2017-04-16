@@ -127,104 +127,6 @@ void KammoGUI::Animation::stop() {
 
 /*************************
  *
- *   MotionEvent implementation
- *
- *************************/
-void KammoGUI::SVGCanvas::MotionEvent::init(long _downTime, long _eventTime, motionEvent_t _action, int _pointerCount, int _actionIndex,
-					    float rawX, float rawY) {
-	down_time = _downTime;
-	event_time = _eventTime;
-	action = _action;
-	pointer_count = _pointerCount > 16 ? 16 : _pointerCount;
-	action_index = _actionIndex;
-	raw_x = rawX;
-	raw_y = rawY;
-}
-void KammoGUI::SVGCanvas::MotionEvent::clone(const MotionEvent &source) {
-	init(source.get_down_time(),
-	     source.get_event_time(),
-	     source.get_action(),
-	     source.get_pointer_count(),
-	     source.get_action_index(),
-	     source.get_raw_x(),
-	     source.get_raw_y());
-
-	int k;
-	for(k = 0; k < source.get_pointer_count(); k++) {
-		init_pointer(k, source.get_pointer_id(k), source.get_x(k), source.get_y(k), source.get_pressure(k));
-	}
-}
-
-void KammoGUI::SVGCanvas::MotionEvent::init_pointer(int index, int id, float x, float y, float pressure)  {
-	if(index >= pointer_count) return;
-	pointer_id[index] = id;
-	pointer_x[index] = x;
-	pointer_y[index] = y;
-	pointer_pressure[index] = pressure;
-}
-
-long KammoGUI::SVGCanvas::MotionEvent::get_down_time() const {
-	return down_time;
-}
-
-long KammoGUI::SVGCanvas::MotionEvent::get_event_time() const {
-	return event_time;
-}
-
-KammoGUI::SVGCanvas::MotionEvent::motionEvent_t KammoGUI::SVGCanvas::MotionEvent::get_action() const {
-	return action;
-}
-
-int KammoGUI::SVGCanvas::MotionEvent::get_action_index() const {
-	return action_index;
-}
-
-float KammoGUI::SVGCanvas::MotionEvent::get_x() const {
-	return pointer_x[action_index];
-}
-
-float KammoGUI::SVGCanvas::MotionEvent::get_y() const {
-	return pointer_y[action_index];
-}
-
-float KammoGUI::SVGCanvas::MotionEvent::get_pressure() const {
-	return pointer_pressure[action_index];
-}
-
-float KammoGUI::SVGCanvas::MotionEvent::get_x(int index) const {
-	if(index >= pointer_count) return 0.0f;
-	return pointer_x[index];
-}
-
-float KammoGUI::SVGCanvas::MotionEvent::get_y(int index) const {
-	if(index >= pointer_count) return 0.0f;
-	return pointer_y[index];
-}
-
-float KammoGUI::SVGCanvas::MotionEvent::get_pressure(int index) const {
-	if(index >= pointer_count) return 0.0f;
-	return pointer_pressure[index];
-}
-
-float KammoGUI::SVGCanvas::MotionEvent::get_raw_x() const {
-	return raw_x;
-}
-
-float KammoGUI::SVGCanvas::MotionEvent::get_raw_y() const {
-	return raw_y;
-}
-
-int KammoGUI::SVGCanvas::MotionEvent::get_pointer_count() const {
-	return pointer_count;
-}
-
-int KammoGUI::SVGCanvas::MotionEvent::get_pointer_id(int index) const {
-	if(index >= pointer_count) return 0;
-	return pointer_id[index];
-}
-
-/*************************
- *
  *   SVGMatrix class implementation
  *
  *************************/
@@ -583,7 +485,7 @@ void KammoGUI::SVGCanvas::ElementReference::set_event_handler(std::function<void
 	svg_element_enable_events(element);
 }
 
-void KammoGUI::SVGCanvas::ElementReference::trigger_event_handler(const KammoGUI::SVGCanvas::MotionEvent &event) {
+void KammoGUI::SVGCanvas::ElementReference::trigger_event_handler(const KammoGUI::MotionEvent &event) {
 	event_handler(source, this, event);
 }
 
@@ -969,7 +871,7 @@ void KammoGUI::SVGCanvas::canvas_motion_event(JNIEnv *env, SVGCanvas *cnv) {
 		document->process_touch_for_animations();
 	}
 	switch(cnv->m_evt.get_action()) {
-	case KammoGUI::SVGCanvas::MotionEvent::ACTION_DOWN:
+	case KammoGUI::MotionEvent::ACTION_DOWN:
 	{
 		svg_element_t *element = NULL;
 
@@ -991,12 +893,12 @@ void KammoGUI::SVGCanvas::canvas_motion_event(JNIEnv *env, SVGCanvas *cnv) {
 			cnv->active_element = NULL;
 	}
 		break;
-	case KammoGUI::SVGCanvas::MotionEvent::ACTION_CANCEL:
-	case KammoGUI::SVGCanvas::MotionEvent::ACTION_MOVE:
-	case KammoGUI::SVGCanvas::MotionEvent::ACTION_OUTSIDE:
-	case KammoGUI::SVGCanvas::MotionEvent::ACTION_POINTER_DOWN:
-	case KammoGUI::SVGCanvas::MotionEvent::ACTION_POINTER_UP:
-	case KammoGUI::SVGCanvas::MotionEvent::ACTION_UP:
+	case KammoGUI::MotionEvent::ACTION_CANCEL:
+	case KammoGUI::MotionEvent::ACTION_MOVE:
+	case KammoGUI::MotionEvent::ACTION_OUTSIDE:
+	case KammoGUI::MotionEvent::ACTION_POINTER_DOWN:
+	case KammoGUI::MotionEvent::ACTION_POINTER_UP:
+	case KammoGUI::MotionEvent::ACTION_UP:
 		break;
 	}
 
@@ -1004,14 +906,14 @@ void KammoGUI::SVGCanvas::canvas_motion_event(JNIEnv *env, SVGCanvas *cnv) {
 		cnv->active_element->trigger_event_handler(cnv->m_evt);
 
 		switch(cnv->m_evt.get_action()) {
-		case KammoGUI::SVGCanvas::MotionEvent::ACTION_POINTER_DOWN:
-		case KammoGUI::SVGCanvas::MotionEvent::ACTION_MOVE:
-		case KammoGUI::SVGCanvas::MotionEvent::ACTION_DOWN:
-		case KammoGUI::SVGCanvas::MotionEvent::ACTION_OUTSIDE:
-		case KammoGUI::SVGCanvas::MotionEvent::ACTION_POINTER_UP:
+		case KammoGUI::MotionEvent::ACTION_POINTER_DOWN:
+		case KammoGUI::MotionEvent::ACTION_MOVE:
+		case KammoGUI::MotionEvent::ACTION_DOWN:
+		case KammoGUI::MotionEvent::ACTION_OUTSIDE:
+		case KammoGUI::MotionEvent::ACTION_POINTER_UP:
 			break;
-		case KammoGUI::SVGCanvas::MotionEvent::ACTION_CANCEL:
-		case KammoGUI::SVGCanvas::MotionEvent::ACTION_UP:
+		case KammoGUI::MotionEvent::ACTION_CANCEL:
+		case KammoGUI::MotionEvent::ACTION_UP:
 			cnv->active_element = NULL;
 			break;
 		}
