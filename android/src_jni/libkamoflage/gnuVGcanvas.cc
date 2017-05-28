@@ -1034,8 +1034,6 @@ namespace KammoGUI {
 
 		stroke = vgCreatePaint();
 		fill = vgCreatePaint();
-		vgSetPaint(stroke, VG_STROKE_PATH);
-		vgSetPaint(fill, VG_FILL_PATH);
 		temporary_path = vgCreatePath(VG_PATH_FORMAT_STANDARD, VG_PATH_DATATYPE_F,
 					      1,0,0,0, VG_PATH_CAPABILITY_ALL);
 
@@ -1133,6 +1131,8 @@ namespace KammoGUI {
 	}
 
 	void GnuVGCanvas::SVGDocument::render() {
+		vgSetPaint(stroke, VG_STROKE_PATH);
+		vgSetPaint(fill, VG_FILL_PATH);
 		(void) svg_render(svg, &svg_render_engine, this);
 	}
 
@@ -2422,6 +2422,7 @@ namespace KammoGUI {
 		vgDrawPath(context->temporary_path, context->state->paint_modes);
 
 		context->fetch_gnuvg_boundingbox();
+		vgSeti(VG_SCISSORING, VG_FALSE);
 
 		return SVG_STATUS_SUCCESS;
 	}
@@ -2452,6 +2453,7 @@ namespace KammoGUI {
 		vgDrawPath(this_path, context->state->paint_modes);
 
 		context->fetch_gnuvg_boundingbox();
+		vgSeti(VG_SCISSORING, VG_FALSE);
 
 		return SVG_STATUS_SUCCESS;
 	}
@@ -2486,6 +2488,7 @@ namespace KammoGUI {
 		vgDrawPath(context->temporary_path, context->state->paint_modes);
 
 		context->fetch_gnuvg_boundingbox();
+		vgSeti(VG_SCISSORING, VG_FALSE);
 
 		KAMOFLAGE_DEBUG("Rendered an ellipse.\n");
 
@@ -2538,6 +2541,7 @@ namespace KammoGUI {
 		vgDrawPath(context->temporary_path, context->state->paint_modes);
 
 		context->fetch_gnuvg_boundingbox();
+		vgSeti(VG_SCISSORING, VG_FALSE);
 
 		return SVG_STATUS_SUCCESS;
 	}
@@ -2573,6 +2577,7 @@ namespace KammoGUI {
 		vgSeti(VG_MATRIX_MODE, VG_MATRIX_PATH_USER_TO_SURFACE);
 
 		context->fetch_gnuvg_boundingbox();
+		vgSeti(VG_SCISSORING, VG_FALSE);
 
 		return SVG_STATUS_SUCCESS;
 	}
@@ -2591,6 +2596,7 @@ namespace KammoGUI {
 		context->use_state_on_top();
 
 		context->fetch_gnuvg_boundingbox();
+		vgSeti(VG_SCISSORING, VG_FALSE);
 
 		return SVG_STATUS_SUCCESS;
 	}
@@ -2721,6 +2727,7 @@ namespace KammoGUI {
 			GNUVG_APPLY_PROFILER_GUARD(prepare_context);
 
 			gnuvgUseContext(gnuVGctx);
+			gnuvgRenderToImage(VG_INVALID_HANDLE);
 			VGfloat clearColor[] = {bg_r, bg_g, bg_b, 1.0};
 			vgSetfv(VG_CLEAR_COLOR, 4, clearColor);
 			vgClear(0, 0, window_width, window_height);
