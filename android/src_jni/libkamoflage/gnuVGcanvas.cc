@@ -2708,8 +2708,10 @@ namespace KammoGUI {
 		vgGetMatrix(fundamentalMatrix);
 		vgLoadIdentity();
 
-		for(auto doc : documents)
+		for(auto doc : documents) {
 			doc->invalidate_bitmap_store();
+			doc->on_resize();
+		}
 	}
 
 	void GnuVGCanvas::set_bg_color(double r, double g, double b) {
