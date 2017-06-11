@@ -45,6 +45,8 @@ import android.util.Log;
 import android.view.KeyEvent;
 import android.view.MotionEvent;
 
+import java.util.concurrent.ConcurrentLinkedQueue;
+
 import javax.microedition.khronos.egl.EGL10;
 import javax.microedition.khronos.egl.EGLConfig;
 import javax.microedition.khronos.egl.EGLContext;
@@ -73,6 +75,7 @@ class gnuVGView extends GLSurfaceView {
 	private static String TAG = "gnuVGdroid";
 	private static final boolean DEBUG = false;
 	private long nativeID;
+	private ConcurrentLinkedQueue<android.view.MotionEvent> event_queue;
 
 	public gnuVGView(long _nativeID,
 			 String parent_id,
@@ -80,6 +83,8 @@ class gnuVGView extends GLSurfaceView {
 		super(context);
 		nativeID = _nativeID;
 		init(false, 0, 0);
+
+		event_queue = new ConcurrentLinkedQueue<android.view.MotionEvent>();
 	}
 
 	private void init(boolean translucent, int depth, int stencil) {
@@ -138,21 +143,38 @@ class gnuVGView extends GLSurfaceView {
 		}
 	}
 
+	float abs_x, abs_y;
+
 	@Override
 	public boolean onTouchEvent(android.view.MotionEvent evt) {
 		invalidate();
 
-		canvasMotionEventInitEvent(nativeID, evt.getDownTime(), evt.getEventTime(), evt.getActionMasked(),
-					   evt.getPointerCount(), evt.getActionIndex(), evt.getRawX(), evt.getRawY());
+		event_queue.add(evt);
+
+		return true;
+	}
+
+	private void processEvent(android.view.MotionEvent evt) {
+		canvasMotionEventInitEvent(nativeID, evt.getDownTime(), evt.getEventTime(),
+					   evt.getActionMasked(),
+					   evt.getPointerCount(), evt.getActionIndex(),
+					   evt.getRawX(), evt.getRawY());
 
 		int k;
 		for(k = 0; k < evt.getPointerCount(); k++) {
-			canvasMotionEventInitPointer(nativeID, k, evt.getPointerId(k), evt.getX(k), evt.getY(k),
+			canvasMotionEventInitPointer(nativeID, k, evt.getPointerId(k),
+						     evt.getX(k) - abs_x,
+						     evt.getY(k) - abs_y,
 						     evt.getPressure(k));
 		}
 		canvasMotionEvent(nativeID);
+	}
 
-		return true;
+	private void processEventQueue() {
+		android.view.MotionEvent evt;
+
+		while((evt = event_queue.poll()) != null)
+			processEvent(evt);
 	}
 
 	private int measureSize(int wanting, int mspec) {
@@ -405,10 +427,17 @@ class gnuVGView extends GLSurfaceView {
 		}
 
 		public void onDrawFrame(GL10 gl) {
+			processEventQueue();
+
 			step(nativeID);
 		}
 
 		public void onSurfaceChanged(GL10 gl, int width, int height) {
+			int[] spos = new int[2];
+			getLocationOnScreen(spos);
+			abs_x = (float)spos[0];
+			abs_y = (float)spos[1];
+
 			Log.w(TAG, "Renderer.onSurfaceChanged()");
 			// calculate size in inches
 			float width_f = (float)width;

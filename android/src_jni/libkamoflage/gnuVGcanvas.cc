@@ -604,7 +604,7 @@ namespace KammoGUI {
 		} else {
 			throw NoSuchElementException(id);
 		}
-		KAMOFLAGE_DEBUG("ElementReference::ElementReference(%p) %s -> ref count before: %d\n", element, id.c_str(), element->ref_count);
+//		KAMOFLAGE_DEBUG("ElementReference::ElementReference(%p) %s -> ref count before: %d\n", element, id.c_str(), element->ref_count);
 	}
 
 	GnuVGCanvas::ElementReference::ElementReference(const ElementReference *sibling, const std::string &id) {
@@ -616,7 +616,7 @@ namespace KammoGUI {
 		} else {
 			throw NoSuchElementException(id);
 		}
-		KAMOFLAGE_DEBUG("ElementReference::ElementReference(%p) %s -> ref count before: %d\n", element, id.c_str(), element->ref_count);
+//		KAMOFLAGE_DEBUG("ElementReference::ElementReference(%p) %s -> ref count before: %d\n", element, id.c_str(), element->ref_count);
 	}
 
 	GnuVGCanvas::ElementReference::ElementReference(const ElementReference *original) {
@@ -645,7 +645,7 @@ namespace KammoGUI {
 			a.element = NULL;
 		}
 
-		KAMOFLAGE_DEBUG("ElementReference move operator = : element pointer %p\n", element);
+//		KAMOFLAGE_DEBUG("ElementReference move operator = : element pointer %p\n", element);
 
 		return *this;
 	}
@@ -654,7 +654,7 @@ namespace KammoGUI {
 		: source(0)
 		, element(0)
 	{
-		KAMOFLAGE_DEBUG("Move constructor.\n");
+//		KAMOFLAGE_DEBUG("Move constructor.\n");
 		(*this) = std::move(original); // move
 	}
 
@@ -670,7 +670,7 @@ namespace KammoGUI {
 	}
 
 	GnuVGCanvas::ElementReference::~ElementReference() {
-		KAMOFLAGE_DEBUG("ElementReference::~ElementReference() - %p\n", element);
+//		KAMOFLAGE_DEBUG("ElementReference::~ElementReference() - %p\n", element);
 		if(element) {
 			if(element->custom_data == this) {
 				// the developer has enabled the event_handler for this ElementReference object
@@ -687,7 +687,7 @@ namespace KammoGUI {
 
 	void GnuVGCanvas::ElementReference::dereference() {
 		if(element) {
-			KAMOFLAGE_DEBUG("ElementReference::dereference() %p -> ref count before: %d\n", element, element->ref_count);
+//			KAMOFLAGE_DEBUG("ElementReference::dereference() %p -> ref count before: %d\n", element, element->ref_count);
 			(void) _svg_element_dereference (element);
 			element = NULL;
 		}
@@ -875,7 +875,7 @@ namespace KammoGUI {
 		destination.element = new_element;
 		(void) _svg_element_reference (new_element);
 
-		KAMOFLAGE_DEBUG("  found element of class %s -> element %p\n", class_name.c_str(), new_element);
+//		KAMOFLAGE_DEBUG("  found element of class %s -> element %p\n", class_name.c_str(), new_element);
 
 		return destination;
 	}
@@ -946,7 +946,7 @@ namespace KammoGUI {
 	}
 
 	void GnuVGCanvas::SVGDocument::process_active_animations() {
-		KAMOFLAGE_DEBUG("process animations: (%p) %p\n", this, &animations);
+//		KAMOFLAGE_DEBUG("process animations: (%p) %p\n", this, &animations);
 		std::set<Animation *>::iterator k = animations.begin();
 		while(k != animations.end()) {
 			(*k)->new_time_tick();
@@ -1232,6 +1232,12 @@ namespace KammoGUI {
 		bounding_box[2] = 0;
 		bounding_box[3] = 0;
 
+		// final clip is also always cleared
+		final_clip_coordinates[0] = 0;
+		final_clip_coordinates[1] = 0;
+		final_clip_coordinates[2] = 0x0fffffff;
+		final_clip_coordinates[3] = 0x0fffffff;
+
 		pathSeg.clear();
 		pathData.clear();
 
@@ -1290,6 +1296,11 @@ namespace KammoGUI {
 		bounding_box[2] = 0;
 		bounding_box[3] = 0;
 
+		final_clip_coordinates[0] = 0;
+		final_clip_coordinates[1] = 0;
+		final_clip_coordinates[2] = 0x0fffffff;
+		final_clip_coordinates[3] = 0x0fffffff;
+
 		pathSeg.clear();
 		pathData.clear();
 
@@ -1298,6 +1309,15 @@ namespace KammoGUI {
 	}
 
 	void GnuVGCanvas::SVGDocument::State::update_bounding_box(unsigned int *new_bbox) {
+		KAMOFLAGE_DEBUG("update_bounding_box(%u, %u, %u, %u) -> (%u, %u, %u, %u)\n",
+				new_bbox[0],
+				new_bbox[1],
+				new_bbox[2],
+				new_bbox[3],
+				bounding_box[0],
+				bounding_box[1],
+				bounding_box[2],
+				bounding_box[3]);
 		if(bounding_box[0] > new_bbox[0])
 			bounding_box[0] = new_bbox[0];
 		if(bounding_box[1] > new_bbox[1])
@@ -1306,6 +1326,12 @@ namespace KammoGUI {
 			bounding_box[2] = new_bbox[2];
 		if(bounding_box[3] < new_bbox[3])
 			bounding_box[3] = new_bbox[3];
+		KAMOFLAGE_DEBUG("     %p - post up bbox: %u, %u, %u, %u\n",
+				this,
+				bounding_box[0],
+				bounding_box[1],
+				bounding_box[2],
+				bounding_box[3]);
 	}
 
 	std::string GnuVGCanvas::SVGDocument::State::create_font_identifier(
@@ -1323,13 +1349,13 @@ namespace KammoGUI {
 		VGFont return_font = VG_INVALID_HANDLE;
 		auto font_i = font_table.find(font_identifier);
 		if(font_i == font_table.end()) {
-			KAMOFLAGE_DEBUG("Will try and load font: %s\n", ffamily.c_str());
+//			KAMOFLAGE_DEBUG("Will try and load font: %s\n", ffamily.c_str());
 			return_font = gnuvgLoadFont(ffamily.c_str(), fstyle);
 			if(return_font != VG_INVALID_HANDLE) {
-				KAMOFLAGE_DEBUG("           ---- font load SUCCESS! %p\n", return_font);
+//				KAMOFLAGE_DEBUG("           ---- font load SUCCESS! %p\n", return_font);
 				font_table[font_identifier] = return_font;
 			} else {
-				KAMOFLAGE_DEBUG("           ---- font load failed...\n");
+//				KAMOFLAGE_DEBUG("           ---- font load failed...\n");
 			}
 		} else {
 			return_font = (*font_i).second;
@@ -1738,12 +1764,14 @@ namespace KammoGUI {
 
 		vgSeti(VG_SCISSORING, do_clipping ? VG_TRUE : VG_FALSE);
 
-		state->final_clip_coordinates[0] = (VGint)final_clip.x;
-		state->final_clip_coordinates[1] = (VGint)final_clip.y;
-		state->final_clip_coordinates[2] = (VGint)final_clip.width;
-		state->final_clip_coordinates[3] = (VGint)final_clip.height;
+		if(do_clipping) {
+			state->final_clip_coordinates[0] = (VGint)final_clip.x;
+			state->final_clip_coordinates[1] = (VGint)final_clip.y;
+			state->final_clip_coordinates[2] = (VGint)final_clip.width;
+			state->final_clip_coordinates[3] = (VGint)final_clip.height;
 
-		vgSetiv(VG_SCISSOR_RECTS, 4, state->final_clip_coordinates);
+			vgSetiv(VG_SCISSOR_RECTS, 4, state->final_clip_coordinates);
+		}
 	}
 
 	void GnuVGCanvas::SVGDocument::use_state_on_top() {
@@ -2614,30 +2642,49 @@ namespace KammoGUI {
 	}
 
 	int GnuVGCanvas::SVGDocument::get_state_boundingbox(svg_bounding_box_t *bbox) {
-		auto left = (VGint)state->bounding_box[0];
-		auto top = (VGint)state->bounding_box[1];
-		auto right = (VGint)state->bounding_box[2];
-		auto bottom = (VGint)state->bounding_box[3];
+		auto left = state->bounding_box[0];
+		auto top = state->bounding_box[1];
+		auto right = state->bounding_box[2];
+		auto bottom = state->bounding_box[3];
+
+		unsigned int fcc[4];
+		for(auto k = 0; k < 4; k++)
+			fcc[k] = (unsigned int)state->final_clip_coordinates[k];
+
+		KAMOFLAGE_DEBUG("       -- clip: %p, %s (%d, %d) -- %u > %u, %u > %u, %u < %u, %u < %u\n",
+				state,
+				state->do_clippz ? "true" : "false",
+				(VGint)parent->window_width,
+				(VGint)parent->window_height,
+				left, fcc[2],
+				top, fcc[3],
+				right, fcc[0],
+				bottom, fcc[1]);
+		KAMOFLAGE_DEBUG("       -- %d, %d, %d, %d\n",
+				state->final_clip_coordinates[0],
+				state->final_clip_coordinates[1],
+				state->final_clip_coordinates[2],
+				state->final_clip_coordinates[3]);
 
 		/* check if outside the clip */
-		if(left > state->final_clip_coordinates[2])
+		if(left > fcc[2])
 			return 0;
-		if(top > state->final_clip_coordinates[3])
+		if(top > fcc[3])
 			return 0;
-		if(right < state->final_clip_coordinates[0])
+		if(right < fcc[0])
 			return 0;
-		if(bottom < state->final_clip_coordinates[1])
+		if(bottom < fcc[1])
 			return 0;
 
 		/* if not - limit by clip */
-		if(left < state->final_clip_coordinates[0])
-			left = state->final_clip_coordinates[0];
-		if(top < state->final_clip_coordinates[1])
-			top = state->final_clip_coordinates[1];
-		if(right > state->final_clip_coordinates[2])
-			right = state->final_clip_coordinates[2];
-		if(bottom > state->final_clip_coordinates[3])
-			bottom = state->final_clip_coordinates[3];
+		if(left < fcc[0])
+			left = fcc[0];
+		if(top < fcc[1])
+			top = fcc[1];
+		if(right > fcc[2])
+			right = fcc[2];
+		if(bottom > fcc[3])
+			bottom = fcc[3];
 
 		bbox->left = (unsigned int)left; bbox->top = (unsigned int)top;
 		bbox->right = (unsigned int)right; bbox->bottom = (unsigned int)bottom;
@@ -2649,7 +2696,10 @@ namespace KammoGUI {
 /* get bounding box of last drawing, in pixels - returns 0 if bounding box is outside the visible clip, non-0 if inside the visible clip */
 	int GnuVGCanvas::SVGDocument::get_last_bounding_box(void *closure, svg_bounding_box_t *bbox) {
 		GnuVGCanvas::SVGDocument* context = (GnuVGCanvas::SVGDocument*)closure;
-		return context->get_state_boundingbox(bbox);
+		auto rval = context->get_state_boundingbox(bbox);
+		KAMOFLAGE_DEBUG("%p Returning bbox: %d, %d -> %d, %d\n",
+				closure, bbox->left, bbox->top, bbox->right, bbox->bottom);
+		return rval;
 	}
 
 
@@ -2722,7 +2772,7 @@ namespace KammoGUI {
 
 	void GnuVGCanvas::step(JNIEnv *env) {
 //		usleep(1000000);
-		KAMOFLAGE_DEBUG("\n\n\n::step() new frame\n");
+//		KAMOFLAGE_DEBUG("\n\n\n::step() new frame\n");
 
 		GNUVG_APPLY_PROFILER_GUARD(full_frame);
 		{
@@ -2799,7 +2849,7 @@ namespace KammoGUI {
 	}
 
 	void GnuVGCanvas::canvas_motion_event(JNIEnv *env) {
-		KAMOFLAGE_DEBUG("    canvas_motion_event (%f, %f)\n", m_evt.get_x(), m_evt.get_y());
+		KAMOFLAGE_ERROR("    canvas_motion_event (%f, %f)\n", m_evt.get_x(), m_evt.get_y());
 
 		for(auto document : documents) {
 			document->process_touch_for_animations();
@@ -2809,17 +2859,17 @@ namespace KammoGUI {
 		{
 			svg_element_t *element = NULL;
 
-			KAMOFLAGE_DEBUG("Will scan docs..\n");
+			KAMOFLAGE_ERROR("Will scan docs..\n");
 			int k = documents.size() - 1;
 			for(; k >= 0 && element == NULL; k--) {
 				GnuVGCanvas::SVGDocument *document = (documents[k]);
 				element = svg_event_coords_match(document->svg,
 								 m_evt.get_x(), m_evt.get_y());
-				KAMOFLAGE_DEBUG("  element = %p\n", element);
+				KAMOFLAGE_ERROR("  element = %p\n", element);
 			}
 
 			if(element) {
-				KAMOFLAGE_DEBUG("   KAMOFLAGE action_down on element: %p (custom: %p)\n", element, element->custom_data);
+				KAMOFLAGE_ERROR("   KAMOFLAGE action_down on element: %p (custom: %p)\n", element, element->custom_data);
 				if(element->custom_data == NULL) {
 					active_element = NULL;
 					KAMOFLAGE_ERROR("GnuVGCanvas::canvas_motion_event() - event handler is missing it's ElementReference - you probably deleted the ElementReference after calling set_event_handler(). Or maybe you used only a temporary ElementReference object.");
@@ -2940,7 +2990,11 @@ extern "C" {
 		KammoGUI::GnuVGCanvas *cnv =
 			(KammoGUI::GnuVGCanvas *)nativeID;
 		cnv->canvas_motion_event(env);
-		KammoGUI::GnuVGCanvas::flush_invalidation_queue();
+		KammoGUI::run_on_GUI_thread(
+			[]() {
+				KammoGUI::GnuVGCanvas::flush_invalidation_queue();
+			}
+			);
 	}
 
 }
