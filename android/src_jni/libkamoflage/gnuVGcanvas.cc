@@ -1122,15 +1122,21 @@ namespace KammoGUI {
 
 		parent->queue_for_invalidate(parent);
 
-		pthread_t self = pthread_self();
+		auto pinternal = parent->internal;
 
-		GET_INTERNAL_CLASS(jc, parent->internal);
-		static jmethodID mid = __ENV->GetMethodID(
-			jc,
-			"start_animation","()V");
+		KammoGUI::run_on_GUI_thread(
+			[pinternal]() {
+				pthread_t self = pthread_self();
 
-		__ENV->CallVoidMethod(
-			parent->internal, mid
+				GET_INTERNAL_CLASS(jc, pinternal);
+				static jmethodID mid = __ENV->GetMethodID(
+					jc,
+					"start_animation","()V");
+
+				__ENV->CallVoidMethod(
+					pinternal, mid
+					);
+			}
 			);
 	}
 
