@@ -2582,10 +2582,11 @@ namespace KammoGUI {
 		context->use_state_on_top();
 
 		VGfloat _x0, _y0, _x1, _y1;
+
 		context->length_to_pixel(x1, &_x0);
 		context->length_to_pixel(y1, &_y0);
 		context->length_to_pixel(x2, &_x1);
-		context->length_to_pixel(x2, &_y1);
+		context->length_to_pixel(y2, &_y1);
 
 		GNUVG_APPLY_PROFILER_GUARD(render_tempath);
 		vgClearPath(context->temporary_path, VG_PATH_CAPABILITY_ALL);
