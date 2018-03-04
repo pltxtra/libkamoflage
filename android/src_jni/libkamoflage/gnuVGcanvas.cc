@@ -2739,6 +2739,7 @@ namespace KammoGUI {
 
 		vgGetMatrix(mtrx);
 		vgTranslate(_x, _y);
+		vgScale(1.0, -1.0);
 
 		gnuvgRenderText(context->state->active_font,
 				context->state->font_size,
