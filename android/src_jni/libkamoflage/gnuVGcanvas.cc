@@ -932,7 +932,10 @@ namespace KammoGUI {
 		const char *txt = svg_chunk.c_str();
 		size_t len = svg_chunk.size();
 
-		svg_parse_buffer_and_inject(source->svg, element, txt, len);
+		if(svg_parse_buffer_and_inject(source->svg, element, txt, len) != SVG_STATUS_SUCCESS) {
+			KAMOFLAGE_ERROR("Error when injecting svg chunk into document - probable syntax error in SVG chunk.\n");
+			throw OperationFailedException();
+		}
 	}
 
 	GnuVGCanvas::ElementReference GnuVGCanvas::ElementReference::add_element_clone(const std::string &new_id,
