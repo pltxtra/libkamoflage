@@ -728,6 +728,136 @@ namespace KammoGUI {
 		return element;
 	}
 
+	template< size_t N >
+	constexpr size_t length( char const (&)[N] )
+	{
+		return N-1;
+	}
+
+	inline size_t get_value_str(char* bfr, size_t bfr_size, const char* value) {
+		bfr_size--;
+		size_t k = 0;
+		if(value[0] == '"') value = &value[1];
+		while(value[k] != '\0' && value[k]  != ' ' && value[k] != '"') {
+			if(k < bfr_size)
+				bfr[k] = value[k];
+			k++;
+		}
+		bfr[k] = '\0';
+		return k;
+	}
+
+	inline bool get_length_attrib(const char** attributes, size_t id_len, const char* id, svg_length_t *final) {
+		char value[64];
+		if(strncmp(id, *attributes, id_len) == 0) {
+			KAMOFLAGE_ERROR("old value: %f, %d\n", final->value, final->unit);
+			*attributes = &(*attributes)[id_len];
+			(*attributes) += get_value_str(value, sizeof(value), *attributes);
+			KAMOFLAGE_ERROR("value parsed: %s\n", value);
+			_svg_length_init_from_str(final, value);
+
+			KAMOFLAGE_ERROR("final: %f, %d\n", final->value, final->unit);
+
+			return true;
+		} else {
+			return false;
+		}
+	}
+
+	inline void skip_attrib(const char** attributes) {
+		char value[4];
+		while((*attributes)[0] != '\0' && (*attributes)[0] != '=') {
+			(*attributes) = &(*attributes)[1];
+		}
+		if((*attributes)[0] == '=') {
+			(*attributes) += get_value_str(value, sizeof(value), *attributes);
+		}
+	}
+
+	void GnuVGCanvas::ElementReference::parse_attributes_svg(const char* attributes) {
+		svg_group_t *group = &(element->e.group);
+		KAMOFLAGE_ERROR("::parse_attributes_svg() element: %p, group: %p\n",
+				element, group);
+		while(attributes[0] != '\0') {
+			if(get_length_attrib(&attributes, length("width="), "width=", &group->width)) {
+				KAMOFLAGE_ERROR("group->width was set\n");
+				continue;
+			}
+			else if(get_length_attrib(&attributes, length("height="), "height=", &group->height)) {
+				KAMOFLAGE_ERROR("group->height was set\n");
+				continue;
+			}
+			else if(get_length_attrib(&attributes, length("x="), "x=", &group->x)) {
+				KAMOFLAGE_ERROR("group->x was set\n");
+				continue;
+			}
+			else if(get_length_attrib(&attributes, length("y="), "y=", &group->y)) {
+				KAMOFLAGE_ERROR("group->y was set\n");
+				continue;
+			}
+			else {
+				KAMOFLAGE_ERROR("no group attribute was set\n");
+				skip_attrib(&attributes);
+			}
+		}
+	}
+
+	void GnuVGCanvas::ElementReference::set_attributes(const std::string &attribute_string) {
+		auto cstr = attribute_string.c_str();
+		if(element) {
+			switch(element->type) {
+			case SVG_ELEMENT_TYPE_SVG_GROUP:
+				parse_attributes_svg(cstr);
+				break;
+			case SVG_ELEMENT_TYPE_GROUP:
+				KAMOFLAGE_DEBUG("::set_atributes() not implemented for <group>\n");
+				break;
+			case SVG_ELEMENT_TYPE_DEFS:
+				KAMOFLAGE_DEBUG("::set_atributes() not implemented for <defs>\n");
+				break;
+			case SVG_ELEMENT_TYPE_USE:
+				KAMOFLAGE_DEBUG("::set_atributes() not implemented for <use>\n");
+				break;
+			case SVG_ELEMENT_TYPE_SYMBOL:
+				KAMOFLAGE_DEBUG("::set_atributes() not implemented for <symbol>\n");
+				break;
+			case SVG_ELEMENT_TYPE_PATH:
+				KAMOFLAGE_DEBUG("::set_atributes() not implemented for <path>\n");
+				break;
+			case SVG_ELEMENT_TYPE_CIRCLE:
+				KAMOFLAGE_DEBUG("::set_atributes() not implemented for <circle>\n");
+				break;
+			case SVG_ELEMENT_TYPE_ELLIPSE:
+				KAMOFLAGE_DEBUG("::set_atributes() not implemented for <ellipse>\n");
+				break;
+			case SVG_ELEMENT_TYPE_LINE:
+				KAMOFLAGE_DEBUG("::set_atributes() not implemented for <line>\n");
+				break;
+			case SVG_ELEMENT_TYPE_RECT:
+				KAMOFLAGE_DEBUG("::set_atributes() not implemented for <rect>\n");
+				break;
+			case SVG_ELEMENT_TYPE_TEXT:
+				KAMOFLAGE_DEBUG("::set_atributes() not implemented for <text>\n");
+				break;
+			case SVG_ELEMENT_TYPE_GRADIENT:
+				KAMOFLAGE_DEBUG("::set_atributes() not implemented for <gradient>\n");
+				break;
+			case SVG_ELEMENT_TYPE_GRADIENT_STOP:
+				KAMOFLAGE_DEBUG("::set_atributes() not implemented for <stop>\n");
+				break;
+			case SVG_ELEMENT_TYPE_PATTERN:
+				KAMOFLAGE_DEBUG("::set_atributes() not implemented for <pattern>\n");
+				break;
+			case SVG_ELEMENT_TYPE_IMAGE:
+				KAMOFLAGE_DEBUG("::set_atributes() not implemented for <image>\n");
+				break;
+			case SVG_ELEMENT_TYPE_FILTER:
+				KAMOFLAGE_DEBUG("::set_atributes() not implemented for <filter>\n");
+				break;
+			}
+		}
+	}
+
 	void GnuVGCanvas::ElementReference::set_transform(const SVGMatrix &matrix) {
 
 		_svg_transform_init_matrix(&(element->transform),

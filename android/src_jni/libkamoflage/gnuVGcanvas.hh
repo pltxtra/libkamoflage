@@ -24,6 +24,7 @@
 #include "kamogui.hh"
 
 #include <VG/openvg.h>
+#include <sstream>
 
 namespace KammoGUI {
 
@@ -429,6 +430,8 @@ namespace KammoGUI {
 			friend class GnuVGCanvas;
 
 			void dereference();
+
+			void parse_attributes_svg(const char* attrs);
 		public:
 			ElementReference();
 			/// get element reference by id
@@ -454,6 +457,16 @@ namespace KammoGUI {
 			std::string get_text_content();
 
 			void* pointer();
+
+			void set_attributes(const std::string &attribute_string);
+
+
+			template <typename T>
+			void set_attribute(const std::string &attribute, const T &value) {
+				std::stringstream result_stream;
+				result_stream << attribute << "=\"" << value << "\"";
+				set_attributes(result_stream.str());
+			}
 
 			void set_transform(const SVGMatrix &matrix);
 			void set_xlink_href(const std::string &url);
