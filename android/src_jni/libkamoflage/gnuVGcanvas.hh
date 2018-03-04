@@ -445,6 +445,8 @@ namespace KammoGUI {
 			ElementReference(SVGDocument *source);
 			~ElementReference();
 
+			ElementReference get_root();
+
 			std::string get_id();
 			std::string get_class();
 

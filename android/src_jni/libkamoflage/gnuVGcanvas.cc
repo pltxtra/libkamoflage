@@ -694,6 +694,10 @@ namespace KammoGUI {
 		source = NULL;
 	}
 
+	GnuVGCanvas::ElementReference GnuVGCanvas::ElementReference::get_root() {
+		return ElementReference(source);
+	}
+
 	std::string GnuVGCanvas::ElementReference::get_id() {
 		return std::string(element->id);
 	}
