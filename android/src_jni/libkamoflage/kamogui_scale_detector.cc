@@ -1,8 +1,9 @@
 /*
  * This file is a derivate work based on
  * https://code.google.com/p/android-vnc-viewer/source/browse/branches/antlersoft/androidVNC/src/com/antlersoft/android/bc/ScaleGestureDetector.java?r=164
+ * (updated with) https://android.googlesource.com/platform/frameworks/base/+/48c7c6c/core/java/android/view/ScaleGestureDetector.java
  *
- * The modified file is (C) 2013 by Anton Persson
+ * The modified file is (C) 2013, 2018 by Anton Persson
  *
  * ----------- License of Modifications ----------------
  *
@@ -40,222 +41,92 @@
 //#define __DO_KAMOFLAGE_DEBUG
 #include "kamoflage_debug.hh"
 
-/**
- * This value is the threshold ratio between our previous combined pressure
- * and the current combined pressure. We will only fire an onScale event if
- * the computed ratio between the current and previous event pressures is
- * greater than this value. When pressure decreases rapidly between events
- * the position values can often be imprecise, as it usually indicates
- * that the user is in the process of lifting a pointer off of the device.
- * Its value was tuned experimentally.
- */
-#define PRESSURE_THRESHOLD 0.67f
-
-
 KammoGUI::ScaleGestureDetector::ScaleGestureDetector(OnScaleGestureListener *listener) : mGestureInProgress(false) {
         mListener = listener;
-        mEdgeSlop = KammoGUI::DisplayConfiguration::get_edge_slop();
 }
 
 bool KammoGUI::ScaleGestureDetector::on_touch_event(const KammoGUI::MotionEvent &event) {
-        int action = event.get_action();
-        bool handled = true;
+	const int action = event.get_action();
+	const bool streamComplete = action == KammoGUI::MotionEvent::ACTION_UP || action == KammoGUI::MotionEvent::ACTION_CANCEL;
 
-        if (!mGestureInProgress) {
-		handled = false;
-		switch (action) {
-		case KammoGUI::MotionEvent::ACTION_POINTER_DOWN: {
-			// We have a new multi-finger gesture
-
-			// as orientation can change, query the metrics in touch down
-			mRightSlopEdge = KammoGUI::DisplayConfiguration::get_screen_width(KammoGUI::pixels) - mEdgeSlop;
-			mBottomSlopEdge = KammoGUI::DisplayConfiguration::get_screen_height(KammoGUI::pixels) - mEdgeSlop;
-
-			// Be paranoid in case we missed an event
-			reset();
-
-			mPrevEvent.clone(event);
-			mTimeDelta = 0;
-
-			set_context(event);
-
-#ifdef SCALE_DETECTOR_DO_SLOPPY_CHECK
-			// Check if we have a sloppy gesture. If so, delay
-			// the beginning of the gesture until we're sure that's
-			// what the user wanted. Sloppy gestures can happen if the
-			// edge of the user's hand is touching the screen, for example.
-			float edgeSlop = mEdgeSlop;
-			float rightSlop = mRightSlopEdge;
-			float bottomSlop = mBottomSlopEdge;
-			float x0 = event.get_raw_x();
-			float y0 = event.get_raw_y();
-			float x1 = get_raw_x(event, 1);
-			float y1 = get_raw_y(event, 1);
-
-			bool p0sloppy =
-				(x0 < edgeSlop || y0 < edgeSlop || x0 > rightSlop || y0 > bottomSlop) ? true : false;
-			bool p1sloppy =
-				(x1 < edgeSlop || y1 < edgeSlop || x1 > rightSlop || y1 > bottomSlop) ? true : false;
-
-			if (p0sloppy && p1sloppy) {
-				mFocusX = -1;
-				mFocusY = -1;
-				mSloppyGesture = true;
-			} else if (p0sloppy) {
-				mFocusX = event.get_x(1);
-				mFocusY = event.get_y(1);
-				mSloppyGesture = true;
-			} else if (p1sloppy) {
-				mFocusX = event.get_x(0);
-				mFocusY = event.get_y(0);
-				mSloppyGesture = true;
-			} else {
-#else
-				mSloppyGesture = false;
-#endif
-				handled = mGestureInProgress = mListener->on_scale_begin(this);
-#ifdef SCALE_DETECTOR_DO_SLOPPY_CHECK
-			}
-#endif
-			KAMOFLAGE_DEBUG("e: %f, re: %f, be: %f -- %s\n", mEdgeSlop, mRightSlopEdge, mBottomSlopEdge,
-					mSloppyGesture ? "true" : "false");
+	if (action == KammoGUI::MotionEvent::ACTION_DOWN || streamComplete) {
+		// Reset any scale in progress with the listener.
+		// If it's an ACTION_DOWN we're beginning a new event stream.
+		// This means the app probably didn't give us all the events. Shame on it.
+		if (mInProgress) {
+		mListener->on_scale_end(this);
+			mInProgress = false;
 		}
-			break;
-
-		case KammoGUI::MotionEvent::ACTION_MOVE:
-			if (mSloppyGesture) {
-				// Initiate sloppy gestures if we've moved outside of the slop area.
-				float edgeSlop = mEdgeSlop;
-				float rightSlop = mRightSlopEdge;
-				float bottomSlop = mBottomSlopEdge;
-				float x0 = event.get_raw_x();
-				float y0 = event.get_raw_y();
-				float x1 = get_raw_x(event, 1);
-				float y1 = get_raw_y(event, 1);
-
-				bool p0sloppy = x0 < edgeSlop || y0 < edgeSlop
-								      || x0 > rightSlop || y0 > bottomSlop;
-				bool p1sloppy = x1 < edgeSlop || y1 < edgeSlop
-								      || x1 > rightSlop || y1 > bottomSlop;
-
-				if(p0sloppy && p1sloppy) {
-					mFocusX = -1;
-					mFocusY = -1;
-				} else if (p0sloppy) {
-					mFocusX = event.get_x(1);
-					mFocusY = event.get_y(1);
-				} else if (p1sloppy) {
-					mFocusX = event.get_x(0);
-					mFocusY = event.get_y(0);
-				} else {
-					mSloppyGesture = false;
-					handled = mGestureInProgress = mListener->on_scale_begin(this);
-				}
-			}
-			break;
-
-		case KammoGUI::MotionEvent::ACTION_POINTER_UP:
-			if (mSloppyGesture) {
-				// Set focus point to the remaining finger
-				int id = event.get_action_index() == 0 ? 1 : 0;
-				mFocusX = event.get_x(id);
-				mFocusY = event.get_y(id);
-			}
-			break;
+		if (streamComplete) {
+			return true;
 		}
-        } else {
-		// Transform gesture in progress - attempt to handle it
-		switch (action) {
-                case KammoGUI::MotionEvent::ACTION_POINTER_UP:
-			// Gesture ended
-			set_context(event);
-
-			// Set focus point to the remaining finger
-			{
-				int id = event.get_action_index() == 0 ? 1 : 0;
-				mFocusX = event.get_x(id);
-				mFocusY = event.get_y(id);
-			}
-
-			if (!mSloppyGesture) {
-				mListener->on_scale_end(this);
-			}
-
-			reset();
-			break;
-
-                case KammoGUI::MotionEvent::ACTION_CANCEL:
-			if (!mSloppyGesture) {
-				mListener->on_scale_end(this);
-			}
-
-			reset();
-			break;
-
-                case KammoGUI::MotionEvent::ACTION_MOVE:
-			set_context(event);
-
-			// Only accept the event if our relative pressure is within
-			// a certain limit - this can help filter shaky data as a
-			// finger is lifted.
-			if (mCurrPressure / mPrevPressure > PRESSURE_THRESHOLD) {
-				bool updatePrevious = mListener->on_scale(this);
-
-				if (updatePrevious) {
-					mPrevEvent.clone(event);
-				}
-			}
-			break;
+	}
+	const bool configChanged =
+		action == KammoGUI::MotionEvent::ACTION_POINTER_UP ||
+		action == KammoGUI::MotionEvent::ACTION_POINTER_DOWN;
+	const bool pointerUp = action == KammoGUI::MotionEvent::ACTION_POINTER_UP;
+	const int skipIndex = pointerUp ? event.get_action_index() : -1;
+	// Determine focal point
+	float sumX = 0, sumY = 0;
+	const int count = event.get_pointer_count();
+	for (int i = 0; i < count; i++) {
+		if (skipIndex == i) continue;
+		sumX += event.get_x(i);
+		sumY += event.get_y(i);
+	}
+	const int div = pointerUp ? count - 1 : count;
+	const float focusX = sumX / div;
+	const float focusY = sumY / div;
+	// Determine average deviation from focal point
+	float devSumX = 0, devSumY = 0;
+	for (int i = 0; i < count; i++) {
+		if (skipIndex == i) continue;
+		devSumX += fabsf(event.get_x(i) - focusX);
+		devSumY += fabsf(event.get_y(i) - focusY);
+	}
+	const float devX = devSumX / div;
+	const float devY = devSumY / div;
+	// Span is the average distance between touch points through the focal point;
+	// i.e. the diameter of the circle with a radius of the average deviation from
+	// the focal point.
+	const float spanX = devX * 2;
+	const float spanY = devY * 2;
+	const float span = sqrtf(spanX * spanX + spanY * spanY);
+	// Dispatch begin/end events as needed.
+	// If the configuration changes, notify the app to reset its current state by beginning
+	// a fresh scale event stream.
+	if (mInProgress && (span == 0 || configChanged)) {
+		mListener->on_scale_end(this);
+		mInProgress = false;
+	}
+	if (configChanged) {
+		mPrevSpanX = mCurrSpanX = spanX;
+		mPrevSpanY = mCurrSpanY = spanY;
+		mPrevSpan = mCurrSpan = span;
+	}
+	if (!mInProgress && span != 0) {
+		mFocusX = focusX;
+		mFocusY = focusY;
+		mInProgress = mListener->on_scale_begin(this);
+	}
+	// Handle motion; focal point and span/scale factor are changing.
+	if (action == KammoGUI::MotionEvent::ACTION_MOVE) {
+		mCurrSpanX = spanX;
+		mCurrSpanY = spanY;
+		mCurrSpan = span;
+		mFocusX = focusX;
+		mFocusY = focusY;
+		bool updatePrev = true;
+		if (mInProgress) {
+			updatePrev = mListener->on_scale(this);
 		}
-        }
-        return handled;
-}
-
-float KammoGUI::ScaleGestureDetector::get_raw_x(const KammoGUI::MotionEvent &event, int pointerIndex) {
-        float offset = event.get_x() - event.get_raw_x();
-        return event.get_x(pointerIndex) + offset;
-}
-
-float KammoGUI::ScaleGestureDetector::get_raw_y(const KammoGUI::MotionEvent &event, int pointerIndex) {
-        float offset = event.get_y() - event.get_raw_y();
-        return event.get_y(pointerIndex) + offset;
-}
-
-void KammoGUI::ScaleGestureDetector::set_context(const KammoGUI::MotionEvent &curr) {
-        mCurrEvent.clone(curr);
-
-        mCurrLen = -1;
-        mPrevLen = -1;
-        mScaleFactor = -1;
-
-        float px0 = mPrevEvent.get_x(0);
-        float py0 = mPrevEvent.get_y(0);
-        float px1 = mPrevEvent.get_x(1);
-        float py1 = mPrevEvent.get_y(1);
-        float cx0 = curr.get_x(0);
-        float cy0 = curr.get_y(0);
-        float cx1 = curr.get_x(1);
-        float cy1 = curr.get_y(1);
-
-        float pvx = px1 - px0;
-        float pvy = py1 - py0;
-        float cvx = cx1 - cx0;
-        float cvy = cy1 - cy0;
-        mPrevFingerDiffX = pvx;
-        mPrevFingerDiffY = pvy;
-        mCurrFingerDiffX = cvx;
-        mCurrFingerDiffY = cvy;
-
-        mFocusX = cx0 + cvx * 0.5f;
-        mFocusY = cy0 + cvy * 0.5f;
-        mTimeDelta = curr.get_event_time() - mPrevEvent.get_event_time();
-        mCurrPressure = curr.get_pressure(0) + curr.get_pressure(1);
-        mPrevPressure = mPrevEvent.get_pressure(0) + mPrevEvent.get_pressure(1);
-}
-
-void KammoGUI::ScaleGestureDetector::reset() {
-        mSloppyGesture = false;
-        mGestureInProgress = false;
+		if (updatePrev) {
+			mPrevSpanX = mCurrSpanX;
+			mPrevSpanY = mCurrSpanY;
+			mPrevSpan = mCurrSpan;
+		}
+	}
+	return true;
 }
 
 /**
@@ -303,12 +174,7 @@ float KammoGUI::ScaleGestureDetector::get_focus_y() {
  * @return Distance between pointers in pixels.
  */
 float KammoGUI::ScaleGestureDetector::get_current_span() {
-        if (mCurrLen == -1) {
-		float cvx = mCurrFingerDiffX;
-		float cvy = mCurrFingerDiffY;
-		mCurrLen = sqrtf(cvx*cvx + cvy*cvy);
-        }
-        return mCurrLen;
+	return mCurrSpan;
 }
 
 /**
@@ -318,12 +184,7 @@ float KammoGUI::ScaleGestureDetector::get_current_span() {
  * @return Previous distance between pointers in pixels.
  */
 float KammoGUI::ScaleGestureDetector::get_previous_span() {
-        if (mPrevLen == -1) {
-		float pvx = mPrevFingerDiffX;
-		float pvy = mPrevFingerDiffY;
-		mPrevLen = sqrtf(pvx*pvx + pvy*pvy);
-        }
-        return mPrevLen;
+        return mPrevSpan;
 }
 
 /**
@@ -334,10 +195,7 @@ float KammoGUI::ScaleGestureDetector::get_previous_span() {
  * @return The current scaling factor.
  */
 float KammoGUI::ScaleGestureDetector::get_scale_factor() {
-        if (mScaleFactor == -1) {
-		mScaleFactor = get_current_span() / get_previous_span();
-        }
-        return mScaleFactor;
+	return mPrevSpan > 0 ? mCurrSpan / mPrevSpan : 1.0f;
 }
 
 /**
@@ -347,7 +205,7 @@ float KammoGUI::ScaleGestureDetector::get_scale_factor() {
  * @return Time difference since the last scaling event in milliseconds.
  */
 long KammoGUI::ScaleGestureDetector::get_time_delta() {
-        return mTimeDelta;
+	return mCurrTime - mPrevTime;
 }
 
 /**
@@ -356,5 +214,5 @@ long KammoGUI::ScaleGestureDetector::get_time_delta() {
  * @return Current event time in milliseconds.
  */
 long KammoGUI::ScaleGestureDetector::get_event_time() {
-        return mCurrEvent.get_event_time();
+	return mCurrTime;
 }

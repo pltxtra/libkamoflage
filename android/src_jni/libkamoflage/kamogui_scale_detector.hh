@@ -125,31 +125,31 @@ namespace KammoGUI {
 
 		float mFocusX;
 		float mFocusY;
-		float mPrevFingerDiffX;
-		float mPrevFingerDiffY;
-		float mCurrFingerDiffX;
-		float mCurrFingerDiffY;
-		float mCurrLen;
-		float mPrevLen;
-
-		float mScaleFactor;
-		float mCurrPressure;
-		float mPrevPressure;
-		long mTimeDelta;
-
-		float mEdgeSlop;
-		float mRightSlopEdge;
-		float mBottomSlopEdge;
-		bool mSloppyGesture;
-
-		static float get_raw_x(const KammoGUI::MotionEvent &event, int pointerIndex);
-		static float get_raw_y(const KammoGUI::MotionEvent &event, int pointerIndex);
-		void set_context(const KammoGUI::MotionEvent &curr);
-		void reset();
+		float mCurrSpan;
+		float mPrevSpan;
+		float mCurrSpanX;
+		float mCurrSpanY;
+		float mPrevSpanX;
+		float mPrevSpanY;
+		long mCurrTime;
+		long mPrevTime;
+		bool mInProgress;
 
 	public:
 		ScaleGestureDetector(OnScaleGestureListener *listener);
 
+		/**
+		 * Accepts MotionEvents and dispatches events to a {@link OnScaleGestureListener}
+		 * when appropriate.
+		 *
+		 * <p>Applications should pass a complete and consistent event stream to this method.
+		 * A complete and consistent event stream involves all MotionEvents from the initial
+		 * ACTION_DOWN to the final ACTION_UP or ACTION_CANCEL.</p>
+		 *
+		 * @param event The event to process
+		 * @return true if the event was processed and the detector wants to receive the
+		 *         rest of the MotionEvents in this event stream.
+		 */
 		bool on_touch_event(const KammoGUI::MotionEvent &event);
 
 		/**
@@ -193,12 +193,52 @@ namespace KammoGUI {
 		float get_current_span();
 
 		/**
+		 * Return the average X distance between each of the pointers forming the
+		 * gesture in progress through the focal point.
+		 *
+		 * @return Distance between pointers in pixels.
+		 */
+		float get_current_span_x() {
+			return mCurrSpanX;
+		}
+
+		/**
+		 * Return the average Y distance between each of the pointers forming the
+		 * gesture in progress through the focal point.
+		 *
+		 * @return Distance between pointers in pixels.
+		 */
+		float get_current_span_y() {
+			return mCurrSpanY;
+		}
+
+		/**
 		 * Return the previous distance between the two pointers forming the
 		 * gesture in progress.
 		 *
 		 * @return Previous distance between pointers in pixels.
 		 */
 		float get_previous_span();
+
+		/**
+		 * Return the previous average X distance between each of the pointers forming the
+		 * gesture in progress through the focal point.
+		 *
+		 * @return Previous distance between pointers in pixels.
+		 */
+		float get_previous_span_x() {
+			return mPrevSpanX;
+		}
+
+		/**
+		 * Return the previous average Y distance between each of the pointers forming the
+		 * gesture in progress through the focal point.
+		 *
+		 * @return Previous distance between pointers in pixels.
+		 */
+		float get_previous_span_y() {
+			return mPrevSpanY;
+		}
 
 		/**
 		 * Return the scaling factor from the previous scale event to the current
