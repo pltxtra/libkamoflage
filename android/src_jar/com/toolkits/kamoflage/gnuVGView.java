@@ -149,7 +149,10 @@ class gnuVGView extends GLSurfaceView {
 	public boolean onTouchEvent(android.view.MotionEvent evt) {
 		invalidate();
 
-		event_queue.add(evt);
+		// The evt object might be recycled, so we need our own copy.
+		android.view.MotionEvent cpy = android.view.MotionEvent.obtain(evt);
+
+		event_queue.add(cpy);
 
 		return true;
 	}
@@ -163,8 +166,8 @@ class gnuVGView extends GLSurfaceView {
 		int k;
 		for(k = 0; k < evt.getPointerCount(); k++) {
 			canvasMotionEventInitPointer(nativeID, k, evt.getPointerId(k),
-						     evt.getX(k) - abs_x,
-						     evt.getY(k) - abs_y,
+						     evt.getX(k),
+						     evt.getY(k),
 						     evt.getPressure(k));
 		}
 		canvasMotionEvent(nativeID);
