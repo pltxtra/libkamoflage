@@ -432,6 +432,7 @@ namespace KammoGUI {
 			void dereference();
 
 			void parse_attributes_svg(const char* attrs);
+			void parse_attributes_rect(const char* attrs);
 		public:
 			ElementReference();
 			/// get element reference by id

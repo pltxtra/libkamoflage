@@ -734,7 +734,7 @@ namespace KammoGUI {
 		return N-1;
 	}
 
-	inline size_t get_value_str(char* bfr, size_t bfr_size, const char* value) {
+	static inline size_t get_value_str(char* bfr, size_t bfr_size, const char* value) {
 		bfr_size--;
 		size_t k = 0;
 		if(value[0] == '"') value = &value[1];
@@ -747,7 +747,7 @@ namespace KammoGUI {
 		return k;
 	}
 
-	inline bool get_length_attrib(const char** attributes, size_t id_len, const char* id, svg_length_t *final) {
+	static inline bool get_length_attrib(const char** attributes, size_t id_len, const char* id, svg_length_t *final) {
 		char value[64];
 		if(strncmp(id, *attributes, id_len) == 0) {
 			KAMOFLAGE_ERROR("old value: %f, %d\n", final->value, final->unit);
@@ -764,7 +764,7 @@ namespace KammoGUI {
 		}
 	}
 
-	inline void skip_attrib(const char** attributes) {
+	static inline void skip_attrib(const char** attributes) {
 		char value[4];
 		while((*attributes)[0] != '\0' && (*attributes)[0] != '=') {
 			(*attributes) = &(*attributes)[1];
@@ -776,8 +776,6 @@ namespace KammoGUI {
 
 	void GnuVGCanvas::ElementReference::parse_attributes_svg(const char* attributes) {
 		svg_group_t *group = &(element->e.group);
-		KAMOFLAGE_ERROR("::parse_attributes_svg() element: %p, group: %p\n",
-				element, group);
 		while(attributes[0] != '\0') {
 			if(get_length_attrib(&attributes, length("width="), "width=", &group->width)) {
 				KAMOFLAGE_ERROR("group->width was set\n");
@@ -796,6 +794,32 @@ namespace KammoGUI {
 				continue;
 			}
 			else {
+				KAMOFLAGE_ERROR("no group attribute was set [%s]\n", attributes);
+				skip_attrib(&attributes);
+			}
+		}
+	}
+
+	void GnuVGCanvas::ElementReference::parse_attributes_rect(const char* attributes) {
+		auto attr = &(element->e.rect);
+		while(attributes[0] != '\0') {
+			if(get_length_attrib(&attributes, length("width="), "width=", &attr->width)) {
+				KAMOFLAGE_ERROR("attr->width was set\n");
+				continue;
+			}
+			else if(get_length_attrib(&attributes, length("height="), "height=", &attr->height)) {
+				KAMOFLAGE_ERROR("attr->height was set\n");
+				continue;
+			}
+			else if(get_length_attrib(&attributes, length("x="), "x=", &attr->x)) {
+				KAMOFLAGE_ERROR("attr->x was set\n");
+				continue;
+			}
+			else if(get_length_attrib(&attributes, length("y="), "y=", &attr->y)) {
+				KAMOFLAGE_ERROR("attr->y was set\n");
+				continue;
+			}
+			else {
 				KAMOFLAGE_ERROR("no group attribute was set\n");
 				skip_attrib(&attributes);
 			}
@@ -810,49 +834,49 @@ namespace KammoGUI {
 				parse_attributes_svg(cstr);
 				break;
 			case SVG_ELEMENT_TYPE_GROUP:
-				KAMOFLAGE_DEBUG("::set_atributes() not implemented for <group>\n");
+				KAMOFLAGE_ERROR("::set_atributes() not implemented for <group>\n");
 				break;
 			case SVG_ELEMENT_TYPE_DEFS:
-				KAMOFLAGE_DEBUG("::set_atributes() not implemented for <defs>\n");
+				KAMOFLAGE_ERROR("::set_atributes() not implemented for <defs>\n");
 				break;
 			case SVG_ELEMENT_TYPE_USE:
-				KAMOFLAGE_DEBUG("::set_atributes() not implemented for <use>\n");
+				KAMOFLAGE_ERROR("::set_atributes() not implemented for <use>\n");
 				break;
 			case SVG_ELEMENT_TYPE_SYMBOL:
-				KAMOFLAGE_DEBUG("::set_atributes() not implemented for <symbol>\n");
+				KAMOFLAGE_ERROR("::set_atributes() not implemented for <symbol>\n");
 				break;
 			case SVG_ELEMENT_TYPE_PATH:
-				KAMOFLAGE_DEBUG("::set_atributes() not implemented for <path>\n");
+				KAMOFLAGE_ERROR("::set_atributes() not implemented for <path>\n");
 				break;
 			case SVG_ELEMENT_TYPE_CIRCLE:
-				KAMOFLAGE_DEBUG("::set_atributes() not implemented for <circle>\n");
+				KAMOFLAGE_ERROR("::set_atributes() not implemented for <circle>\n");
 				break;
 			case SVG_ELEMENT_TYPE_ELLIPSE:
-				KAMOFLAGE_DEBUG("::set_atributes() not implemented for <ellipse>\n");
+				KAMOFLAGE_ERROR("::set_atributes() not implemented for <ellipse>\n");
 				break;
 			case SVG_ELEMENT_TYPE_LINE:
-				KAMOFLAGE_DEBUG("::set_atributes() not implemented for <line>\n");
+				KAMOFLAGE_ERROR("::set_atributes() not implemented for <line>\n");
 				break;
 			case SVG_ELEMENT_TYPE_RECT:
-				KAMOFLAGE_DEBUG("::set_atributes() not implemented for <rect>\n");
+				parse_attributes_rect(cstr);
 				break;
 			case SVG_ELEMENT_TYPE_TEXT:
-				KAMOFLAGE_DEBUG("::set_atributes() not implemented for <text>\n");
+				KAMOFLAGE_ERROR("::set_atributes() not implemented for <text>\n");
 				break;
 			case SVG_ELEMENT_TYPE_GRADIENT:
-				KAMOFLAGE_DEBUG("::set_atributes() not implemented for <gradient>\n");
+				KAMOFLAGE_ERROR("::set_atributes() not implemented for <gradient>\n");
 				break;
 			case SVG_ELEMENT_TYPE_GRADIENT_STOP:
-				KAMOFLAGE_DEBUG("::set_atributes() not implemented for <stop>\n");
+				KAMOFLAGE_ERROR("::set_atributes() not implemented for <stop>\n");
 				break;
 			case SVG_ELEMENT_TYPE_PATTERN:
-				KAMOFLAGE_DEBUG("::set_atributes() not implemented for <pattern>\n");
+				KAMOFLAGE_ERROR("::set_atributes() not implemented for <pattern>\n");
 				break;
 			case SVG_ELEMENT_TYPE_IMAGE:
-				KAMOFLAGE_DEBUG("::set_atributes() not implemented for <image>\n");
+				KAMOFLAGE_ERROR("::set_atributes() not implemented for <image>\n");
 				break;
 			case SVG_ELEMENT_TYPE_FILTER:
-				KAMOFLAGE_DEBUG("::set_atributes() not implemented for <filter>\n");
+				KAMOFLAGE_ERROR("::set_atributes() not implemented for <filter>\n");
 				break;
 			}
 		}
@@ -3081,14 +3105,16 @@ extern "C" {
 		if(time_difference.tv_nsec < 0)
 			time_difference.tv_sec--;
 
-		if(time_difference.tv_sec >= 1) {
+		if(time_difference.tv_sec >= 500) {
 			last_time = this_time;
 
+			double roll_avg_frame_time = GNUVG_GET_PROFILER_ROLLING_AVG_TIME(full_frame);
 			double full_frame_time = GNUVG_GET_PROFILER_TIME(full_frame);
 			double full_frame_count = GNUVG_GET_PROFILER_COUNT(full_frame);
 			KAMOFLAGE_ERROR("\n");
 
 			KAMOFLAGE_ERROR("------------\n");
+			KAMOFLAGE_ERROR("Rolling avg Time/Frame: %f\n", roll_avg_frame_time);
 			KAMOFLAGE_ERROR("Time/Frame: %f\n",
 					full_frame_time / full_frame_count);
 
