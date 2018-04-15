@@ -2792,6 +2792,28 @@ namespace KammoGUI {
 		GnuVGCanvas::SVGDocument* context = (GnuVGCanvas::SVGDocument*)closure;
 		context->use_state_on_top();
 
+		VGImage img = vgCreateImage(VG_sRGBA_8888, data_width, data_height, VG_IMAGE_QUALITY_FASTER);
+		vgImageSubData(img, data, 0, VG_sRGBA_8888,
+			       0, 0, data_width, data_height);
+
+		VGfloat _x, _y, _w, _h;
+		context->length_to_pixel(x, &_x);
+		context->length_to_pixel(y, &_y);
+		context->length_to_pixel(width, &_w);
+		context->length_to_pixel(height, &_h);
+
+		vgSeti(VG_MATRIX_MODE, VG_MATRIX_IMAGE_USER_TO_SURFACE);
+		VGfloat mtrx[9];
+
+		vgGetMatrix(mtrx);
+		vgTranslate(_x, _y);
+		vgScale(_w / (VGfloat)data_width, _h / (VGfloat)data_height);
+
+		vgDrawImage(img);
+
+		vgLoadMatrix(mtrx);
+		vgSeti(VG_MATRIX_MODE, VG_MATRIX_PATH_USER_TO_SURFACE);
+
 		context->fetch_gnuvg_boundingbox();
 		vgSeti(VG_SCISSORING, VG_FALSE);
 
