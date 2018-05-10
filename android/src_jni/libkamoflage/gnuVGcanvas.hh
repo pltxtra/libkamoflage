@@ -517,6 +517,8 @@ namespace KammoGUI {
 			int number_of_active_animations();
 
 			struct State {
+				char safety_header[7] = {'S', 'A', 'F', 'E', 'T', 'Y', '\0'};
+
 				static std::map<std::string, VGFont> font_table;
 
 				VGfloat matrix[9];
@@ -575,7 +577,7 @@ namespace KammoGUI {
 				void configure_font();
 			};
 
-			VGfloat DPI;
+			VGfloat DPI = 300.0f;
 
 			VGPaint fill;
 			VGPaint stroke;

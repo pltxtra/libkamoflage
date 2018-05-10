@@ -38,7 +38,7 @@
 #include "gnuVGcanvas.hh"
 #include "libsvg/svgint.h"
 
-//#define __DO_KAMOFLAGE_DEBUG
+#define __DO_KAMOFLAGE_DEBUG
 #include "kamoflage_debug.hh"
 
 #define ENABLE_GNUVG_PROFILER
@@ -51,6 +51,33 @@ GNUVG_DECLARE_PROFILER_PROBE(regenerate_scissors);
 GNUVG_DECLARE_PROFILER_PROBE(render_tempath);
 GNUVG_DECLARE_PROFILER_PROBE(render_text);
 GNUVG_DECLARE_PROFILER_PROBE(render_path_cache);
+
+#ifdef __DO_KAMOFLAGE_DEBUG
+static void dump_matrix_x(const char *header, VGfloat *mtrx) {
+	KAMOFLAGE_ERROR(
+		"  %s...\n"
+		"   %f, %f, %f\n"
+		"   %f, %f, %f\n"
+		"   %f, %f, %f\n"
+		, header
+		, mtrx[0], mtrx[3], mtrx[6]
+		, mtrx[1], mtrx[4], mtrx[7]
+		, mtrx[2], mtrx[5], mtrx[8]
+		);
+}
+
+static void dump_matrix(const char *header) {
+	VGfloat mtrx[9];
+	vgGetMatrix(mtrx);
+	dump_matrix_x(header, mtrx);
+}
+
+#else
+
+#define dump_matrix_x(...)
+#define dump_matrix(...)
+
+#endif
 
 namespace KammoGUI {
 
@@ -1298,6 +1325,9 @@ namespace KammoGUI {
 	}
 
 	void GnuVGCanvas::SVGDocument::render() {
+		KAMOFLAGE_DEBUG("\n\n\nSVGDocument::render() : top state: %p\n",
+				state);
+
 		vgSetPaint(stroke, VG_STROKE_PATH);
 		vgSetPaint(fill, VG_FILL_PATH);
 		(void) svg_render(svg, &svg_render_engine, this);
@@ -1314,32 +1344,43 @@ namespace KammoGUI {
 
 		VGfloat lenval = (VGfloat)(length->value);
 
+		KAMOFLAGE_DEBUG("length_to_pixel(%f, %d)\n", lenval, length->unit);
+
 		switch (length->unit) {
 		case SVG_LENGTH_UNIT_PX:
+			KAMOFLAGE_DEBUG("   px\n");
 			*pixel = lenval;
 			break;
 		case SVG_LENGTH_UNIT_CM:
+			KAMOFLAGE_DEBUG("   cm\n");
 			*pixel = (lenval / 2.54) * DPI;
 			break;
 		case SVG_LENGTH_UNIT_MM:
+			KAMOFLAGE_DEBUG("   mm\n");
 			*pixel = (lenval / 25.4) * DPI;
 			break;
 		case SVG_LENGTH_UNIT_IN:
+			KAMOFLAGE_DEBUG("   in\n");
 			*pixel = lenval * DPI;
 			break;
 		case SVG_LENGTH_UNIT_PT:
+			KAMOFLAGE_DEBUG("   pt\n");
 			*pixel = (lenval / 72.0) * DPI;
 			break;
 		case SVG_LENGTH_UNIT_PC:
+			KAMOFLAGE_DEBUG("   pc\n");
 			*pixel = (lenval / 6.0) * DPI;
 			break;
 		case SVG_LENGTH_UNIT_EM:
+			KAMOFLAGE_DEBUG("   em\n");
 			*pixel = lenval * state->font_size;
 			break;
 		case SVG_LENGTH_UNIT_EX:
+			KAMOFLAGE_DEBUG("   ex\n");
 			*pixel = lenval * state->font_size / 2.0;
 			break;
 		case SVG_LENGTH_UNIT_PCT:
+			KAMOFLAGE_DEBUG("   pct\n");
 			width = state->viewport_width;
 			height = state->viewport_height;
 
@@ -1351,6 +1392,7 @@ namespace KammoGUI {
 				*pixel = (lenval / 100.0) * sqrt(pow(width, 2) + pow(height, 2)) * sqrt(2);
 			break;
 		default:
+			KAMOFLAGE_DEBUG("    def.\n");
 			*pixel = lenval;
 		}
 	}
@@ -1613,9 +1655,16 @@ namespace KammoGUI {
 
 		if(state_stack.size() != 0) {
 			new_state->init_by_copy(state_stack.back());
+			KAMOFLAGE_DEBUG("previous matrix: %p\n", state_stack.back());
+			dump_matrix_x("init by copy...", new_state->matrix);
 		} else {
+			KAMOFLAGE_DEBUG("********************\n");
+			KAMOFLAGE_DEBUG("********************\n");
+			KAMOFLAGE_DEBUG("********************\n");
 			new_state->init_fresh();
+			dump_matrix_x("init fresh...", new_state->matrix);
 		}
+		KAMOFLAGE_DEBUG("New state: %p\n", new_state);
 
 		state_stack.push_back(new_state);
 		state = new_state;
@@ -1641,6 +1690,9 @@ namespace KammoGUI {
 
 		state_stack.pop_back();
 		state = state_stack.back();
+
+		KAMOFLAGE_DEBUG("popped to state: %p\n", state);
+		dump_matrix_x("iz a strange matrix ?:", state->matrix);
 
 		if(previous_bitmap != current_bitmap) {
 			KAMOFLAGE_DEBUG(" will render %p into %p.\n",
@@ -2018,7 +2070,8 @@ namespace KammoGUI {
 		}
 
 		context->stack_push(current_bitmap, opacity);
-		KAMOFLAGE_DEBUG(" --- begin group called. (state is %p)\n", context->state);
+		KAMOFLAGE_DEBUG(" --- begin group called. (state is %p, %f)\n",
+				context->state, context->state->matrix[0]);
 
 		return SVG_STATUS_SUCCESS;
 	}
@@ -2027,8 +2080,8 @@ namespace KammoGUI {
 		GnuVGCanvas::SVGDocument* context = (GnuVGCanvas::SVGDocument*)closure;
 
 		context->stack_push();
-
 		KAMOFLAGE_DEBUG(" --- begin element called. (state is %p)\n", context->state);
+
 		return SVG_STATUS_SUCCESS;
 	}
 
@@ -2525,7 +2578,9 @@ namespace KammoGUI {
 		VGfloat logic_x, logic_y;
 		VGfloat phys_width, phys_height;
 
+		KAMOFLAGE_DEBUG("::apply_view_box() will convert length_to_pixel()\n");
 		context->length_to_pixel(width, &phys_width);
+		KAMOFLAGE_DEBUG("::apply_view_box() will convert length_to_pixel() -- again\n");
 		context->length_to_pixel(height, &phys_height);
 
 		vpar = view_box.box.width / view_box.box.height;
@@ -2535,10 +2590,16 @@ namespace KammoGUI {
 		logic_width = view_box.box.width;
 		logic_height = view_box.box.height;
 
+		dump_matrix_x(" pre apply viewbox...", context->state->matrix);
 		vgLoadMatrix(context->state->matrix);
 
 		if (view_box.aspect_ratio == SVG_PRESERVE_ASPECT_RATIO_NONE)
 		{
+			KAMOFLAGE_DEBUG("preserve aspect ratio none.\n"
+					"%f / %f\n"
+					"%f / %f\n",
+					phys_width, logic_width,
+					phys_height, logic_height);
 			vgScale(phys_width / logic_width,
 				phys_height / logic_height);
 			vgTranslate(-logic_x, -logic_y);
@@ -2546,6 +2607,7 @@ namespace KammoGUI {
 		else if ((vpar < svgar && view_box.meet_or_slice == SVG_MEET_OR_SLICE_MEET) ||
 			 (vpar >= svgar && view_box.meet_or_slice == SVG_MEET_OR_SLICE_SLICE))
 		{
+			KAMOFLAGE_DEBUG("aspect ratio meet or slice.\n");
 			vgScale(phys_height / logic_height, phys_height / logic_height);
 
 			if (view_box.aspect_ratio == SVG_PRESERVE_ASPECT_RATIO_XMINYMIN ||
@@ -2564,6 +2626,7 @@ namespace KammoGUI {
 		}
 		else
 		{
+			KAMOFLAGE_DEBUG("aspect else.\n");
 			vgScale(phys_width / logic_width, phys_width / logic_width);
 
 			if (view_box.aspect_ratio == SVG_PRESERVE_ASPECT_RATIO_XMINYMIN ||
@@ -2582,6 +2645,7 @@ namespace KammoGUI {
 		}
 
 		vgGetMatrix(context->state->matrix);
+		dump_matrix_x(" post apply viewbox...", context->state->matrix);
 		return SVG_STATUS_SUCCESS;
 	}
 
@@ -2806,7 +2870,11 @@ namespace KammoGUI {
 		VGfloat mtrx[9];
 
 		vgGetMatrix(mtrx);
+
+		dump_matrix("pre translate...");
+		vgLoadMatrix(context->state->matrix);
 		vgTranslate(_x, _y);
+		dump_matrix("post translate...");
 		vgScale(_w / (VGfloat)data_width, _h / (VGfloat)data_height);
 
 		vgDrawImage(img);
@@ -2816,6 +2884,8 @@ namespace KammoGUI {
 
 		context->fetch_gnuvg_boundingbox();
 		vgSeti(VG_SCISSORING, VG_FALSE);
+
+		vgDestroyImage(img);
 
 		return SVG_STATUS_SUCCESS;
 	}
@@ -2841,21 +2911,6 @@ namespace KammoGUI {
 		unsigned int fcc[4];
 		for(auto k = 0; k < 4; k++)
 			fcc[k] = (unsigned int)state->final_clip_coordinates[k];
-
-		KAMOFLAGE_DEBUG("       -- clip: %p, %s (%d, %d) -- %u > %u, %u > %u, %u < %u, %u < %u\n",
-				state,
-				state->do_clippz ? "true" : "false",
-				(VGint)parent->window_width,
-				(VGint)parent->window_height,
-				left, fcc[2],
-				top, fcc[3],
-				right, fcc[0],
-				bottom, fcc[1]);
-		KAMOFLAGE_DEBUG("       -- %d, %d, %d, %d\n",
-				state->final_clip_coordinates[0],
-				state->final_clip_coordinates[1],
-				state->final_clip_coordinates[2],
-				state->final_clip_coordinates[3]);
 
 		/* check if outside the clip */
 		if(left > fcc[2])
@@ -2963,7 +3018,7 @@ namespace KammoGUI {
 
 	void GnuVGCanvas::step(JNIEnv *env) {
 //		usleep(1000000);
-//		KAMOFLAGE_DEBUG("\n\n\n::step() new frame\n");
+		KAMOFLAGE_DEBUG("\n\n\n::step() new frame\n");
 
 		GNUVG_APPLY_PROFILER_GUARD(full_frame);
 		{
