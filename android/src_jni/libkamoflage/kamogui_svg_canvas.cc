@@ -508,11 +508,14 @@ KammoGUI::SVGCanvas::ElementReference KammoGUI::SVGCanvas::ElementReference::add
 }
 
 void KammoGUI::SVGCanvas::ElementReference::get_viewport(SVGRect &rect) const {
-	_svg_element_get_viewport(element,
-				  &rect.x,
-				  &rect.y,
-				  &rect.width,
-				  &rect.height);
+	svg_length_t x, y, w, h;
+
+	_svg_element_get_viewport(element, &x, &y, &w, &h);
+
+	rect.x = x.value;
+	rect.y = y.value;
+	rect.width = w.value;
+	rect.height = h.value;
 }
 
 void KammoGUI::SVGCanvas::ElementReference::get_boundingbox(SVGRect &rect) {

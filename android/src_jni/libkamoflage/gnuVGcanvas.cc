@@ -38,7 +38,7 @@
 #include "gnuVGcanvas.hh"
 #include "libsvg/svgint.h"
 
-#define __DO_KAMOFLAGE_DEBUG
+//#define __DO_KAMOFLAGE_DEBUG
 #include "kamoflage_debug.hh"
 
 #define ENABLE_GNUVG_PROFILER
@@ -90,6 +90,74 @@ namespace KammoGUI {
 		: jException(id + " : element does not exist.", jException::sanity_error) {}
 	GnuVGCanvas::OperationFailedException::OperationFailedException()
 		: jException("GnuVGCanvas - operation failed.", jException::sanity_error) {}
+
+/*************************
+ *
+ * Helpers
+ *
+ *************************/
+
+	static inline double length_to_pixel_d(
+		const GnuVGCanvas::SVGDocument::State *vinfo, svg_length_t *length
+		) {
+		double width, height;
+		double pixel;
+		double lenval = length->value;
+
+		KAMOFLAGE_DEBUG("length_to_pixel(%f, %d)\n", lenval, length->unit);
+
+		switch (length->unit) {
+		case SVG_LENGTH_UNIT_PX:
+			KAMOFLAGE_DEBUG("   px\n");
+			pixel = lenval;
+			break;
+		case SVG_LENGTH_UNIT_CM:
+			KAMOFLAGE_DEBUG("   cm\n");
+			pixel = (lenval / 2.54) * vinfo->DPI;
+			break;
+		case SVG_LENGTH_UNIT_MM:
+			KAMOFLAGE_DEBUG("   mm\n");
+			pixel = (lenval / 25.4) * vinfo->DPI;
+			break;
+		case SVG_LENGTH_UNIT_IN:
+			KAMOFLAGE_DEBUG("   in\n");
+			pixel = lenval * vinfo->DPI;
+			break;
+		case SVG_LENGTH_UNIT_PT:
+			KAMOFLAGE_DEBUG("   pt\n");
+			pixel = (lenval / 72.0) * vinfo->DPI;
+			break;
+		case SVG_LENGTH_UNIT_PC:
+			KAMOFLAGE_DEBUG("   pc\n");
+			pixel = (lenval / 6.0) * vinfo->DPI;
+			break;
+		case SVG_LENGTH_UNIT_EM:
+			KAMOFLAGE_DEBUG("   em\n");
+			pixel = lenval * vinfo->font_size;
+			break;
+		case SVG_LENGTH_UNIT_EX:
+			KAMOFLAGE_DEBUG("   ex\n");
+			pixel = lenval * vinfo->font_size / 2.0;
+			break;
+		case SVG_LENGTH_UNIT_PCT:
+			KAMOFLAGE_DEBUG("   pct\n");
+			width = vinfo->viewport_width;
+			height = vinfo->viewport_height;
+
+			if (length->orientation == SVG_LENGTH_ORIENTATION_HORIZONTAL)
+				pixel = (lenval / 100.0) * width;
+			else if (length->orientation == SVG_LENGTH_ORIENTATION_VERTICAL)
+				pixel = (lenval / 100.0) * height;
+			else
+				pixel = (lenval / 100.0) * sqrt(pow(width, 2) + pow(height, 2)) * sqrt(2);
+			break;
+		default:
+			KAMOFLAGE_DEBUG("    def.\n");
+			pixel = lenval;
+		}
+
+		return pixel;
+	}
 
 /*************************
  *
@@ -1001,11 +1069,16 @@ namespace KammoGUI {
 	}
 
 	void GnuVGCanvas::ElementReference::get_viewport(SVGRect &rect) const {
-		_svg_element_get_viewport(element,
-					  &rect.x,
-					  &rect.y,
-					  &rect.width,
-					  &rect.height);
+		svg_length_t x, y, w, h;
+
+		_svg_element_get_viewport(element, &x, &y, &w, &h);
+
+		auto state = source->get_state();
+
+		rect.x      = length_to_pixel_d(state, &x);
+		rect.y      = length_to_pixel_d(state, &y);
+		rect.width  = length_to_pixel_d(state, &w);
+		rect.height = length_to_pixel_d(state, &h);
 	}
 
 	void GnuVGCanvas::ElementReference::get_boundingbox(SVGRect &rect) {
@@ -1339,62 +1412,9 @@ namespace KammoGUI {
  *
  ********************************************************/
 
-	void GnuVGCanvas::SVGDocument::length_to_pixel(svg_length_t *length, VGfloat* pixel) {
-		VGfloat width, height;
-
-		VGfloat lenval = (VGfloat)(length->value);
-
-		KAMOFLAGE_DEBUG("length_to_pixel(%f, %d)\n", lenval, length->unit);
-
-		switch (length->unit) {
-		case SVG_LENGTH_UNIT_PX:
-			KAMOFLAGE_DEBUG("   px\n");
-			*pixel = lenval;
-			break;
-		case SVG_LENGTH_UNIT_CM:
-			KAMOFLAGE_DEBUG("   cm\n");
-			*pixel = (lenval / 2.54) * DPI;
-			break;
-		case SVG_LENGTH_UNIT_MM:
-			KAMOFLAGE_DEBUG("   mm\n");
-			*pixel = (lenval / 25.4) * DPI;
-			break;
-		case SVG_LENGTH_UNIT_IN:
-			KAMOFLAGE_DEBUG("   in\n");
-			*pixel = lenval * DPI;
-			break;
-		case SVG_LENGTH_UNIT_PT:
-			KAMOFLAGE_DEBUG("   pt\n");
-			*pixel = (lenval / 72.0) * DPI;
-			break;
-		case SVG_LENGTH_UNIT_PC:
-			KAMOFLAGE_DEBUG("   pc\n");
-			*pixel = (lenval / 6.0) * DPI;
-			break;
-		case SVG_LENGTH_UNIT_EM:
-			KAMOFLAGE_DEBUG("   em\n");
-			*pixel = lenval * state->font_size;
-			break;
-		case SVG_LENGTH_UNIT_EX:
-			KAMOFLAGE_DEBUG("   ex\n");
-			*pixel = lenval * state->font_size / 2.0;
-			break;
-		case SVG_LENGTH_UNIT_PCT:
-			KAMOFLAGE_DEBUG("   pct\n");
-			width = state->viewport_width;
-			height = state->viewport_height;
-
-			if (length->orientation == SVG_LENGTH_ORIENTATION_HORIZONTAL)
-				*pixel = (lenval / 100.0) * width;
-			else if (length->orientation == SVG_LENGTH_ORIENTATION_VERTICAL)
-				*pixel = (lenval / 100.0) * height;
-			else
-				*pixel = (lenval / 100.0) * sqrt(pow(width, 2) + pow(height, 2)) * sqrt(2);
-			break;
-		default:
-			KAMOFLAGE_DEBUG("    def.\n");
-			*pixel = lenval;
-		}
+	void GnuVGCanvas::SVGDocument::length_to_pixel(
+		svg_length_t *length, VGfloat* pixel) {
+		*pixel = length_to_pixel_d(state, length);
 	}
 
 /********************************************************
@@ -1403,10 +1423,15 @@ namespace KammoGUI {
  *
  ********************************************************/
 
-	void GnuVGCanvas::SVGDocument::State::init_by_copy(const GnuVGCanvas::SVGDocument::State* original) {
+	void GnuVGCanvas::SVGDocument::State::init_by_copy(
+		VGfloat _DPI,
+		const GnuVGCanvas::SVGDocument::State* original
+		) {
 		for(int i = 0; i < 9; ++i) {
 			matrix[i] = original->matrix[i];
 		}
+		DPI = _DPI;
+
 		color = original->color;
 		opacity = original->opacity;
 		paint_modes = original->paint_modes;
@@ -1456,7 +1481,9 @@ namespace KammoGUI {
 		current_filter = nullptr;
 	}
 
-	void GnuVGCanvas::SVGDocument::State::init_fresh() {
+	void GnuVGCanvas::SVGDocument::State::init_fresh(VGfloat _DPI) {
+		DPI = _DPI;
+
 		VGfloat identity[] = {
 			1.0, 0.0, 0.0,
 			0.0, 1.0, 0.0,
@@ -1654,14 +1681,14 @@ namespace KammoGUI {
 		}
 
 		if(state_stack.size() != 0) {
-			new_state->init_by_copy(state_stack.back());
+			new_state->init_by_copy(DPI, state_stack.back());
 			KAMOFLAGE_DEBUG("previous matrix: %p\n", state_stack.back());
 			dump_matrix_x("init by copy...", new_state->matrix);
 		} else {
 			KAMOFLAGE_DEBUG("********************\n");
 			KAMOFLAGE_DEBUG("********************\n");
 			KAMOFLAGE_DEBUG("********************\n");
-			new_state->init_fresh();
+			new_state->init_fresh(DPI);
 			dump_matrix_x("init fresh...", new_state->matrix);
 		}
 		KAMOFLAGE_DEBUG("New state: %p\n", new_state);
@@ -2998,6 +3025,13 @@ namespace KammoGUI {
 		window_width_inches = width_inches;
 		window_height_inches = height_inches;
 
+		auto diagonal = sqrt((float)(width * width + height  * height));
+		auto diagonal_inches = sqrt(
+			width_inches * width_inches +
+			height_inches  * height_inches);
+
+		auto DPI = diagonal / diagonal_inches;
+
 		vgLoadIdentity();
 		vgTranslate(0.0f, window_height);
 		vgScale(1.0, -1.0);
@@ -3005,6 +3039,7 @@ namespace KammoGUI {
 		vgLoadIdentity();
 
 		for(auto doc : documents) {
+			doc->update_parameters(DPI);
 			doc->invalidate_bitmap_store();
 			doc->on_resize();
 		}

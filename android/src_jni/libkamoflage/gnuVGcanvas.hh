@@ -500,22 +500,7 @@ namespace KammoGUI {
 		};
 
 		class SVGDocument : public VGImageAllocator {
-		private:
-			std::map<std::string, GnuVGFilter *> filters;
-
-			std::set<Animation *> animations;
-			GnuVGCanvas *parent;
-			svg_t *svg;
-			std::string file_name;
-
-			friend class ElementReference;
-			friend class GnuVGCanvas;
-
-			// called by GnuVGCanvas
-			void process_active_animations();
-			void process_touch_for_animations();
-			int number_of_active_animations();
-
+		public:
 			struct State {
 				char safety_header[7] = {'S', 'A', 'F', 'E', 'T', 'Y', '\0'};
 
@@ -560,13 +545,14 @@ namespace KammoGUI {
 				VGFont active_font;
 				bool font_dirty;
 
+				VGfloat DPI;
 				VGfloat viewport_width, viewport_height;
 
 				GvgVector<VGubyte> pathSeg;
 				GvgVector<VGfloat> pathData;
 
-				void init_by_copy(const State* original);
-				void init_fresh();
+				void init_by_copy(VGfloat DPI, const State* original);
+				void init_fresh(VGfloat DPI);
 
 				void update_bounding_box(unsigned int *new_bbox);
 
@@ -576,6 +562,22 @@ namespace KammoGUI {
 						gnuVGFontStyle fstyle);
 				void configure_font();
 			};
+
+		private:
+			std::map<std::string, GnuVGFilter *> filters;
+
+			std::set<Animation *> animations;
+			GnuVGCanvas *parent;
+			svg_t *svg;
+			std::string file_name;
+
+			friend class ElementReference;
+			friend class GnuVGCanvas;
+
+			// called by GnuVGCanvas
+			void process_active_animations();
+			void process_touch_for_animations();
+			int number_of_active_animations();
 
 			VGfloat DPI = 300.0f;
 
@@ -752,6 +754,10 @@ namespace KammoGUI {
 			void render();
 			GnuVGCanvas* get_parent();
 
+			const State *get_state() {
+				return state;
+			}
+
 			virtual ~SVGDocument();
 
 			/// start to animate a new animation
@@ -766,6 +772,11 @@ namespace KammoGUI {
 
 			virtual VGImage get_fresh_bitmap() override;
 			virtual void recycle_bitmap(VGImage vgi) override;
+
+			void update_parameters(VGfloat _DPI) {
+				DPI = _DPI;
+			}
+
 			void invalidate_bitmap_store();
 		};
 
