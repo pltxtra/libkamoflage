@@ -256,6 +256,12 @@ namespace KammoGUI {
 			vgSeti(VG_BLEND_MODE, VG_BLEND_SRC_OVER);
 			vgDrawImage(img_1);
 			break;
+		default:
+		case feBlend_multiply:
+		case feBlend_screen:
+		case feBlend_darken:
+		case feBlend_lighten:
+			break;
 		}
 			vgSeti(VG_BLEND_MODE, old_blend_mode);
 
@@ -319,6 +325,8 @@ namespace KammoGUI {
 			vgDrawImage(img_1);
 			break;
 
+		case feComposite_xor:
+		case feComposite_arithmetic:
 		case feComposite_atop:
 //			tricky
 			break;
@@ -1308,7 +1316,7 @@ namespace KammoGUI {
 		parent->documents.push_back(this);
 
 		// load the svg
-		if(svg_create (&(svg))) {
+		if(svg_create (&(svg), &svg_render_engine, this)) {
 			throw jException("Failed to allocate internal SVG structure",
 					 jException::sanity_error);
 		}
@@ -1330,6 +1338,8 @@ namespace KammoGUI {
 		svg_render_engine.arc_to = arc_to;
 		svg_render_engine.close_path = close_path;
 		svg_render_engine.free_path_cache = free_path_cache;
+		/* image cache */
+		svg_render_engine.free_image_cache = free_image_cache;
 		/* style */
 		svg_render_engine.set_color = set_color;
 		svg_render_engine.set_fill_opacity = set_fill_opacity;
@@ -1403,7 +1413,7 @@ namespace KammoGUI {
 
 		vgSetPaint(stroke, VG_STROKE_PATH);
 		vgSetPaint(fill, VG_FILL_PATH);
-		(void) svg_render(svg, &svg_render_engine, this);
+		(void) svg_render(svg);
 	}
 
 /********************************************************
@@ -2217,13 +2227,11 @@ namespace KammoGUI {
 		return SVG_STATUS_SUCCESS;
 	}
 
-	svg_status_t GnuVGCanvas::SVGDocument::free_path_cache(void* closure, void **path_cache) {
+	void GnuVGCanvas::SVGDocument::free_path_cache(void* closure, void **path_cache) {
 		VGPath pthc = (VGPath)(*path_cache);
 		if(pthc != VG_INVALID_HANDLE) {
 			vgDestroyPath(pthc);
 		}
-
-		return SVG_STATUS_SUCCESS;
 	}
 
 /* style */
@@ -2870,6 +2878,16 @@ namespace KammoGUI {
 		return SVG_STATUS_SUCCESS;
 	}
 
+	void GnuVGCanvas::SVGDocument::free_image_cache(void* closure, unsigned char *data) {
+		GnuVGCanvas::SVGDocument* context = (GnuVGCanvas::SVGDocument*)closure;
+		auto cached_image = context->image_cache.find(data);
+
+		if(cached_image != context->image_cache.end()) {
+			vgDestroyImage(cached_image->second);
+			context->image_cache.erase(data);
+		}
+	}
+
 	svg_status_t GnuVGCanvas::SVGDocument::render_image(void* closure,
 							    unsigned char *data,
 							    unsigned int	 data_width,
@@ -2883,9 +2901,17 @@ namespace KammoGUI {
 		GnuVGCanvas::SVGDocument* context = (GnuVGCanvas::SVGDocument*)closure;
 		context->use_state_on_top();
 
-		VGImage img = vgCreateImage(VG_sRGBA_8888, data_width, data_height, VG_IMAGE_QUALITY_FASTER);
-		vgImageSubData(img, data, 0, VG_sRGBA_8888,
-			       0, 0, data_width, data_height);
+		VGImage img = VG_INVALID_HANDLE;
+		auto cached_image = context->image_cache.find(data);
+
+		if(cached_image == context->image_cache.end()) {
+			img = vgCreateImage(VG_sRGBA_8888, data_width, data_height, VG_IMAGE_QUALITY_FASTER);
+			vgImageSubData(img, data, 0, VG_sRGBA_8888,
+				       0, 0, data_width, data_height);
+			context->image_cache[data] = img;
+		} else {
+			img = cached_image->second;
+		}
 
 		VGfloat _x, _y, _w, _h;
 		context->length_to_pixel(x, &_x);
@@ -2911,8 +2937,6 @@ namespace KammoGUI {
 
 		context->fetch_gnuvg_boundingbox();
 		vgSeti(VG_SCISSORING, VG_FALSE);
-
-		vgDestroyImage(img);
 
 		return SVG_STATUS_SUCCESS;
 	}

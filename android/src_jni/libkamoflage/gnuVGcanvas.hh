@@ -590,6 +590,8 @@ namespace KammoGUI {
 			std::stack<State*> state_unused;
 			std::deque<VGImage> bitmap_store;
 
+			std::map<unsigned char *, VGImage> image_cache;
+
 			void set_color_and_alpha(
 				VGPaint* vgpaint, State* state, const svg_color_t *color, double alpha);
 			void set_gradient(
@@ -636,7 +638,8 @@ namespace KammoGUI {
 						   double	x,
 						   double	y);
 			static svg_status_t close_path(void* closure);
-			static svg_status_t free_path_cache(void* closure, void **path_cache);
+			static void free_path_cache(void* closure, void **path_cache);
+			static void free_image_cache(void* closure, unsigned char *data);
 			static svg_status_t set_color(void* closure, const svg_color_t *color);
 			static svg_status_t set_fill_opacity(void* closure, double fill_opacity);
 			static svg_status_t set_fill_paint(void* closure, const svg_paint_t *paint);
