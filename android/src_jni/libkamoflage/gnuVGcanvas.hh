@@ -551,8 +551,9 @@ namespace KammoGUI {
 				GvgVector<VGubyte> pathSeg;
 				GvgVector<VGfloat> pathData;
 
-				void init_by_copy(VGfloat DPI, const State* original);
-				void init_fresh(VGfloat DPI);
+				void init_by_copy(int clip_width, int clip_height,
+						  VGfloat DPI, const State* original);
+				void init_fresh(int clip_width, int clip_height, VGfloat DPI);
 
 				void update_bounding_box(unsigned int *new_bbox);
 
@@ -611,7 +612,7 @@ namespace KammoGUI {
 			void stack_pop();
 			void use_state_on_top();
 
-			void fetch_gnuvg_boundingbox();
+			void fetch_gnuvg_boundingbox(bool debug = false);
 
 			// return 0 if bounding box is outside the visible clip
 			int get_state_boundingbox(svg_bounding_box_t *bbox);

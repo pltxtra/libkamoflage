@@ -79,6 +79,14 @@ static void dump_matrix(const char *header) {
 
 #endif
 
+extern int _libsvg_debug_bbox;
+
+#define SWAP(a,b) {\
+		auto ______t = a; \
+		a = b; \
+		b = ______t; \
+	}
+
 namespace KammoGUI {
 
 /*************************
@@ -1388,6 +1396,7 @@ namespace KammoGUI {
 	GnuVGCanvas::SVGDocument::SVGDocument(const std::string& fname, GnuVGCanvas* _parent)
 		: SVGDocument(_parent)
 	{
+		file_name = fname;
 		(void) svg_parse(svg, fname.c_str());
 	}
 
@@ -1434,6 +1443,7 @@ namespace KammoGUI {
  ********************************************************/
 
 	void GnuVGCanvas::SVGDocument::State::init_by_copy(
+		int clip_width, int clip_height,
 		VGfloat _DPI,
 		const GnuVGCanvas::SVGDocument::State* original
 		) {
@@ -1479,8 +1489,8 @@ namespace KammoGUI {
 		// final clip is also always cleared
 		final_clip_coordinates[0] = 0;
 		final_clip_coordinates[1] = 0;
-		final_clip_coordinates[2] = 0x0fffffff;
-		final_clip_coordinates[3] = 0x0fffffff;
+		final_clip_coordinates[2] = clip_width;
+		final_clip_coordinates[3] = clip_height;
 
 		pathSeg.clear();
 		pathData.clear();
@@ -1491,7 +1501,8 @@ namespace KammoGUI {
 		current_filter = nullptr;
 	}
 
-	void GnuVGCanvas::SVGDocument::State::init_fresh(VGfloat _DPI) {
+	void GnuVGCanvas::SVGDocument::State::init_fresh(
+		int clip_width, int clip_height, VGfloat _DPI) {
 		DPI = _DPI;
 
 		VGfloat identity[] = {
@@ -1544,8 +1555,8 @@ namespace KammoGUI {
 
 		final_clip_coordinates[0] = 0;
 		final_clip_coordinates[1] = 0;
-		final_clip_coordinates[2] = 0x0fffffff;
-		final_clip_coordinates[3] = 0x0fffffff;
+		final_clip_coordinates[2] = clip_width;
+		final_clip_coordinates[3] = clip_height;
 
 		pathSeg.clear();
 		pathData.clear();
@@ -1555,15 +1566,16 @@ namespace KammoGUI {
 	}
 
 	void GnuVGCanvas::SVGDocument::State::update_bounding_box(unsigned int *new_bbox) {
-		KAMOFLAGE_DEBUG("update_bounding_box(%u, %u, %u, %u) -> (%u, %u, %u, %u)\n",
-				new_bbox[0],
-				new_bbox[1],
-				new_bbox[2],
-				new_bbox[3],
-				bounding_box[0],
-				bounding_box[1],
-				bounding_box[2],
-				bounding_box[3]);
+		if(_libsvg_debug_bbox)
+			KAMOFLAGE_ERROR("update_bounding_box(%u, %u, %u, %u) -> (%u, %u, %u, %u)\n",
+					new_bbox[0],
+					new_bbox[1],
+					new_bbox[2],
+					new_bbox[3],
+					bounding_box[0],
+					bounding_box[1],
+					bounding_box[2],
+					bounding_box[3]);
 		if(bounding_box[0] > new_bbox[0])
 			bounding_box[0] = new_bbox[0];
 		if(bounding_box[1] > new_bbox[1])
@@ -1572,12 +1584,13 @@ namespace KammoGUI {
 			bounding_box[2] = new_bbox[2];
 		if(bounding_box[3] < new_bbox[3])
 			bounding_box[3] = new_bbox[3];
-		KAMOFLAGE_DEBUG("     %p - post up bbox: %u, %u, %u, %u\n",
-				this,
-				bounding_box[0],
-				bounding_box[1],
-				bounding_box[2],
-				bounding_box[3]);
+		if(_libsvg_debug_bbox)
+			KAMOFLAGE_ERROR("     %p - post up bbox: %u, %u, %u, %u\n",
+					this,
+					bounding_box[0],
+					bounding_box[1],
+					bounding_box[2],
+					bounding_box[3]);
 	}
 
 	std::string GnuVGCanvas::SVGDocument::State::create_font_identifier(
@@ -1691,14 +1704,15 @@ namespace KammoGUI {
 		}
 
 		if(state_stack.size() != 0) {
-			new_state->init_by_copy(DPI, state_stack.back());
+			new_state->init_by_copy(parent->window_width, parent->window_height,
+						DPI, state_stack.back());
 			KAMOFLAGE_DEBUG("previous matrix: %p\n", state_stack.back());
 			dump_matrix_x("init by copy...", new_state->matrix);
 		} else {
 			KAMOFLAGE_DEBUG("********************\n");
 			KAMOFLAGE_DEBUG("********************\n");
 			KAMOFLAGE_DEBUG("********************\n");
-			new_state->init_fresh(DPI);
+			new_state->init_fresh(parent->window_width, parent->window_height, DPI);
 			dump_matrix_x("init fresh...", new_state->matrix);
 		}
 		KAMOFLAGE_DEBUG("New state: %p\n", new_state);
@@ -2000,6 +2014,24 @@ namespace KammoGUI {
 
 			rx2 = x2 * m[0] + y2 * m[3] + m[6];
 			ry2 = x2 * m[1] + y2 * m[4] + m[7];
+/*
+			if(rx2 < rx1) {
+				auto t = rx1;
+				rx1 = rx2;
+				rx2 = t;
+			}
+			if(ry2 < ry1) {
+				auto t = ry1;
+				ry1 = ry2;
+				ry2 = t;
+			}
+*/
+			if(rx1 > rx2) {
+				SWAP(rx1, rx2);
+			}
+			if(ry1 > ry2) {
+				SWAP(ry1, ry2);
+			}
 
 			SVGRect current_clip(
 				rx1,
@@ -2027,6 +2059,84 @@ namespace KammoGUI {
 			state->final_clip_coordinates[3] = (VGint)final_clip.height;
 
 			vgSetiv(VG_SCISSOR_RECTS, 4, state->final_clip_coordinates);
+
+			if(true)//  && final_clip.y > 1000)
+			{
+				KAMOFLAGE_ERROR(" ... \n");
+				KAMOFLAGE_ERROR(" ... \n");
+				KAMOFLAGE_ERROR(" ... first clip: 0, 0, %d, %d\n", parent->window_width, parent->window_height);
+				SVGRect final_clip(0, 0,
+						   parent->window_width,
+						   parent->window_height);
+
+				parent->loadFundamentalMatrix();
+				for(auto s : state_stack) {
+					if(s->has_clip_box) {
+						VGfloat m[9];
+
+						vgGetMatrix(m);
+
+						VGfloat x1, y1, x2, y2, w, h;
+
+						x1 = s->clip_box[0];
+						y1 = s->clip_box[1];
+						w = s->clip_box[2];
+						h = s->clip_box[3];
+						x2 = x1 + w; y2 = y1 + h;
+
+						VGfloat rx1, ry1, rx2, ry2;
+
+						rx1 = x1 * m[0] + y1 * m[3] + m[6];
+						ry1 = x1 * m[1] + y1 * m[4] + m[7];
+
+						rx2 = x2 * m[0] + y2 * m[3] + m[6];
+						ry2 = x2 * m[1] + y2 * m[4] + m[7];
+
+						KAMOFLAGE_ERROR("[] state matrix: %06.4f, %06.4f, %06.4f\n"
+								"                 %06.4f, %06.4f, %06.4f\n"
+								"                 %06.4f, %06.4f, %06.4f\n",
+								m[0], m[3], m[6],
+								m[1], m[4], m[7],
+								m[2], m[5], m[8]
+							);
+						KAMOFLAGE_ERROR("                  pre: %f, %f -> %f, %f\n",
+								x1, y1, w, h);
+						KAMOFLAGE_ERROR("           pres swap: %f, %f -> %f, %f\n",
+								rx1,
+								ry1,
+								rx2 - rx1,
+								ry2 - ry1);
+						if(rx1 > rx2) {
+							SWAP(rx1, rx2);
+						}
+						if(ry1 > ry2) {
+							SWAP(ry1, ry2);
+						}
+
+						SVGRect current_clip(
+							rx1,
+							ry1,
+							rx2 - rx1,
+							ry2 - ry1);
+						KAMOFLAGE_ERROR("           input clip: %f, %f -> %f, %f\n",
+								current_clip.x,
+								current_clip.y,
+								current_clip.width,
+								current_clip.height);
+
+						final_clip.intersect_with(current_clip);
+					}
+					parent->loadFundamentalMatrix();
+					vgMultMatrix(s->matrix);
+
+				}
+				KAMOFLAGE_ERROR("[]  =======>    clip: %f, %f -> %f, %f\n",
+						final_clip.x,
+						final_clip.y,
+						final_clip.width,
+						final_clip.height);
+//				exit(-1);
+			}
 		}
 	}
 
@@ -2835,7 +2945,7 @@ namespace KammoGUI {
 		}
 		vgDrawPath(context->temporary_path, context->state->paint_modes);
 
-		context->fetch_gnuvg_boundingbox();
+		context->fetch_gnuvg_boundingbox(_libsvg_debug_bbox ? true : false);
 		vgSeti(VG_SCISSORING, VG_FALSE);
 
 		return SVG_STATUS_SUCCESS;
@@ -2941,14 +3051,24 @@ namespace KammoGUI {
 		return SVG_STATUS_SUCCESS;
 	}
 
-	void GnuVGCanvas::SVGDocument::fetch_gnuvg_boundingbox() {
+	void GnuVGCanvas::SVGDocument::fetch_gnuvg_boundingbox(bool debug) {
 		VGfloat sp[4];
 		unsigned int bbx[4];
 
 		/* convert from gnuVG float to unsigned integers */
 		gnuvgGetBoundingBox(sp);
-		for(int k = 0; k < 4; k++)
-			bbx[k] = (unsigned int)sp[k];
+		bbx[0] = (unsigned int)sp[0];
+		bbx[1] = parent->window_height - ((unsigned int)sp[3]);
+		bbx[2] = (unsigned int)sp[2];
+		bbx[3] = parent->window_height - (unsigned int)sp[1];
+
+		if(debug) {
+			KAMOFLAGE_ERROR("gnuvgGetBoundingBox(%d, %d, %d, %d)\n",
+					bbx[0],
+					bbx[1],
+					bbx[2],
+					bbx[3]);
+		}
 
 		state->update_bounding_box(bbx);
 	}
@@ -2959,9 +3079,34 @@ namespace KammoGUI {
 		auto right = state->bounding_box[2];
 		auto bottom = state->bounding_box[3];
 
+		auto fc1_x = (unsigned int)state->final_clip_coordinates[0];
+		auto fc1_y = (unsigned int)state->final_clip_coordinates[1];
+		auto fc_w = (unsigned int)state->final_clip_coordinates[2];
+		auto fc_h = (unsigned int)state->final_clip_coordinates[3];
+		auto fc2_x = fc1_x + fc_w;
+		auto fc2_y = fc1_y + fc_h;
+
 		unsigned int fcc[4];
-		for(auto k = 0; k < 4; k++)
-			fcc[k] = (unsigned int)state->final_clip_coordinates[k];
+		fcc[0] = fc1_x;
+		fcc[1] = parent->window_height - fc2_y;
+		fcc[2] = fc2_x;
+		fcc[3] = parent->window_height - fc1_y;
+
+		if(_libsvg_debug_bbox) {
+			KAMOFLAGE_ERROR("[]  === %p bbox: %d, %d -> %d, %d\n",
+					state, left, top, right, bottom);
+			KAMOFLAGE_ERROR("[]  ===    pre-clip: %d, %d -> %d, %d\n",
+					(unsigned int)state->final_clip_coordinates[0],
+					(unsigned int)state->final_clip_coordinates[1],
+					(unsigned int)state->final_clip_coordinates[2],
+					(unsigned int)state->final_clip_coordinates[3]
+				);
+			KAMOFLAGE_ERROR("[]  ===    clip: %d, %d -> %d, %d\n",
+					fcc[0],
+					fcc[1],
+					fcc[2],
+					fcc[3]);
+		}
 
 		/* check if outside the clip */
 		if(left > fcc[2])
@@ -2994,8 +3139,9 @@ namespace KammoGUI {
 	int GnuVGCanvas::SVGDocument::get_last_bounding_box(void *closure, svg_bounding_box_t *bbox) {
 		GnuVGCanvas::SVGDocument* context = (GnuVGCanvas::SVGDocument*)closure;
 		auto rval = context->get_state_boundingbox(bbox);
-		KAMOFLAGE_DEBUG("%p Returning bbox: %d, %d -> %d, %d\n",
-				closure, bbox->left, bbox->top, bbox->right, bbox->bottom);
+		if(_libsvg_debug_bbox)
+			KAMOFLAGE_ERROR("%p, %d Returning bbox: %d, %d -> %d, %d\n",
+					closure, rval, bbox->left, bbox->top, bbox->right, bbox->bottom);
 		return rval;
 	}
 
@@ -3168,8 +3314,13 @@ namespace KammoGUI {
 			int k = documents.size() - 1;
 			for(; k >= 0 && element == NULL; k--) {
 				GnuVGCanvas::SVGDocument *document = (documents[k]);
-				element = svg_event_coords_match(document->svg,
+				auto new_element = svg_event_coords_match(document->svg,
 								 m_evt.get_x(), m_evt.get_y());
+				if(new_element) {
+					element = new_element;
+					KAMOFLAGE_ERROR("  element %p found in %s\n",
+							element, document->file_name.c_str());
+				}
 				KAMOFLAGE_ERROR("  element = %p\n", element);
 			}
 
