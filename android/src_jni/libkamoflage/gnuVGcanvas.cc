@@ -1175,11 +1175,11 @@ namespace KammoGUI {
 					     double width_pixels, double height_pixels,
 					     double fit_width_inches, double fit_height_inches,
 					     double source_width_pixels, double source_height_pixels) {
-		// calculate the size of a finger in pixels
+		// calculate the size of an inch in pixels
 		double pxl_per_inch_w = width_pixels / width_inches;
 		double pxl_per_inch_h = height_pixels / height_inches;
 
-		// force scaling to fit into predefined "fingers"-area
+		// force scaling to fit into predefined "inches"-area
 		if(width_inches > fit_width_inches) width_inches = fit_width_inches;
 		if(height_inches > fit_height_inches) height_inches = fit_height_inches;
 
