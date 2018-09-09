@@ -612,7 +612,7 @@ namespace KammoGUI {
 			void stack_pop();
 			void use_state_on_top();
 
-			void fetch_gnuvg_boundingbox(bool debug = false);
+			void fetch_gnuvg_boundingbox();
 
 			// return 0 if bounding box is outside the visible clip
 			int get_state_boundingbox(svg_bounding_box_t *bbox);
