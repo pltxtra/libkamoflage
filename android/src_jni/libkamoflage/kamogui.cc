@@ -271,25 +271,28 @@ void KammoGUI::EventHandler::on_poll(KammoGUI::Widget *widget) {
 }
 
 void KammoGUI::EventHandler::trigger_user_event(KammoGUI::UserEvent *ue, std::map<std::string, void *> data) {
-	if(ue == NULL)
-		throw jException("Can't trigger user event at address zero. (NULL pointer exception.)",
-				 jException::sanity_error);
-	KammoGUI::Widget *wid = (KammoGUI::Widget *)ue;
+	run_on_GUI_thread([ue, data]() {
+			if(ue == NULL)
+				throw jException("Can't trigger user event at address zero. (NULL pointer exception.)",
+						 jException::sanity_error);
+			KammoGUI::Widget *wid = (KammoGUI::Widget *)ue;
 
-	// notify Java runtime that we are triggering a user event
-	pthread_t self = pthread_self();
-	// OK, prepare to call....
-	GET_INTERNAL_CLASS(jc, wid->internal);
-	static jmethodID mid = __ENV->GetMethodID(jc,
-						  "trigger_user_event","()V");
-	// OK, finally time to call the trigger_user_event() java method.. PUH!
-	__ENV->CallVoidMethod(
-		wid->internal, mid // object and method reference
+			// notify Java runtime that we are triggering a user event
+			pthread_t self = pthread_self();
+			// OK, prepare to call....
+			GET_INTERNAL_CLASS(jc, wid->internal);
+			static jmethodID mid = __ENV->GetMethodID(jc,
+								  "trigger_user_event","()V");
+			// OK, finally time to call the trigger_user_event() java method.. PUH!
+			__ENV->CallVoidMethod(
+				wid->internal, mid // object and method reference
+				);
+
+			// OK, do the real event stuff
+			for(auto k : wid->evh)
+				k->on_user_event(ue, data);
+		}
 		);
-
-	// OK, do the real event stuff
-	for(auto k : wid->evh)
-		k->on_user_event(ue, data);
 }
 
 void KammoGUI::EventHandler::trigger_user_event(KammoGUI::UserEvent *ue) {
