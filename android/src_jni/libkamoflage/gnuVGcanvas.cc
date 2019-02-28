@@ -1161,16 +1161,6 @@ namespace KammoGUI {
  *
  ********************************************************/
 
-	void GnuVGCanvas::SVGDocument::get_canvas_size(int &width_in_pixels, int &height_in_pixels) {
-		width_in_pixels = parent->window_width;
-		height_in_pixels = parent->window_height;
-	}
-
-	void GnuVGCanvas::SVGDocument::get_canvas_size_inches(float &width_in_inches, float &height_in_inches) {
-		width_in_inches = parent->window_width_inches;
-		height_in_inches = parent->window_height_inches;
-	}
-
 	static inline double __fit_to_inches(double width_inches, double height_inches,
 					     double width_pixels, double height_pixels,
 					     double fit_width_inches, double fit_height_inches,
@@ -1200,8 +1190,8 @@ namespace KammoGUI {
 		GnuVGCanvas::SVGRect document_size;
 
 		element->get_viewport(document_size);
-		get_canvas_size(canvas_w, canvas_h);
-		get_canvas_size_inches(canvas_w_inches, canvas_h_inches);
+		canvas->get_size_pixels(canvas_w, canvas_h);
+		canvas->get_size_inches(canvas_w_inches, canvas_h_inches);
 
 		KAMOFLAGE_DEBUG("canvas(pxls):    %d, %d\n", canvas_w, canvas_h);
 		KAMOFLAGE_DEBUG("canvas(inch):    %f, %f\n",
@@ -1258,9 +1248,9 @@ namespace KammoGUI {
 			new_animation->start();
 		}
 
-		parent->queue_for_invalidate(parent);
+		Widget::queue_for_invalidate(canvas);
 
-		auto pinternal = parent->internal;
+		auto pinternal = canvas->internal;
 
 		KammoGUI::run_on_GUI_thread(
 			[pinternal]() {
@@ -1304,12 +1294,12 @@ namespace KammoGUI {
 		return 0.1f;
 	}
 
-	GnuVGCanvas::SVGDocument::SVGDocument(GnuVGCanvas* _parent)
-		: parent(_parent)
+	GnuVGCanvas::SVGDocument::SVGDocument(GnuVGCanvas* _canvas)
+		: canvas(_canvas)
 	{
-		KAMOFLAGE_ERROR("Will tell gnuVG to use context from parent(%p)->%p\n",
-				parent, (void *)(parent == NULL ? nullptr : (void *)parent->gnuVGctx));
-		gnuvgUseContext(parent->gnuVGctx);
+		KAMOFLAGE_ERROR("Will tell gnuVG to use context from canvas(%p)->%p\n",
+				canvas, (void *)(canvas == NULL ? nullptr : (void *)canvas->gnuVGctx));
+		gnuvgUseContext(canvas->gnuVGctx);
 
 		stack_push(); // push initial state
 
@@ -1318,8 +1308,8 @@ namespace KammoGUI {
 		temporary_path = vgCreatePath(VG_PATH_FORMAT_STANDARD, VG_PATH_DATATYPE_F,
 					      1,0,0,0, VG_PATH_CAPABILITY_ALL);
 
-		// link parent to us
-		parent->documents.push_back(this);
+		// link canvas to us
+		canvas->documents.push_back(this);
 
 		// load the svg
 		if(svg_create (&(svg), &svg_render_engine, this)) {
@@ -1391,25 +1381,21 @@ namespace KammoGUI {
 		svg_render_engine.get_last_bounding_box = get_last_bounding_box;
 	}
 
-	GnuVGCanvas::SVGDocument::SVGDocument(const std::string& fname, GnuVGCanvas* _parent)
-		: SVGDocument(_parent)
+	GnuVGCanvas::SVGDocument::SVGDocument(const std::string& fname, GnuVGCanvas* _canvas)
+		: SVGDocument(_canvas)
 	{
 		file_name = fname;
 		(void) svg_parse(svg, fname.c_str());
 	}
 
-	GnuVGCanvas::SVGDocument::SVGDocument(GnuVGCanvas* _parent, const std::string& xml)
-		: SVGDocument(_parent)
+	GnuVGCanvas::SVGDocument::SVGDocument(GnuVGCanvas* _canvas, const std::string& xml)
+		: SVGDocument(_canvas)
 	{
 		const char *bfr = xml.c_str();
 		(void) svg_parse_buffer(svg, bfr, strlen(bfr));
 	}
 
 	GnuVGCanvas::SVGDocument::~SVGDocument() {}
-
-	GnuVGCanvas* GnuVGCanvas::SVGDocument::get_parent() {
-		return parent;
-	}
 
 	void GnuVGCanvas::SVGDocument::on_resize() {
 	}
@@ -1625,7 +1611,7 @@ namespace KammoGUI {
 			gnuvgRenderToImage(state->current_bitmap);
 
 			int w, h;
-			get_canvas_size(w, h);
+			canvas->get_size_pixels(w, h);
 
 			VGfloat clearColor[] = {0,0, 0,0, 0.0, 0.0};
 			vgSetfv(VG_CLEAR_COLOR, 4, clearColor);
@@ -1650,7 +1636,7 @@ namespace KammoGUI {
 		if(bitmap_store.size() == 0) {
 			int w, h;
 
-			get_canvas_size(w, h);
+			canvas->get_size_pixels(w, h);
 
 			allocated = vgCreateImage(VG_sRGBA_8888,
 						  w, h,
@@ -1685,15 +1671,15 @@ namespace KammoGUI {
 		}
 
 		if(state_stack.size() != 0) {
-			new_state->init_by_copy(parent->window_width, parent->window_height,
-						DPI, state_stack.back());
+			new_state->init_by_copy(canvas->window_width, canvas->window_height,
+						canvas->get_dpi(), state_stack.back());
 			KAMOFLAGE_DEBUG("previous matrix: %p\n", state_stack.back());
 			dump_matrix_x("init by copy...", new_state->matrix);
 		} else {
 			KAMOFLAGE_DEBUG("********************\n");
 			KAMOFLAGE_DEBUG("********************\n");
 			KAMOFLAGE_DEBUG("********************\n");
-			new_state->init_fresh(parent->window_width, parent->window_height, DPI);
+			new_state->init_fresh(canvas->window_width, canvas->window_height, canvas->get_dpi());
 			dump_matrix_x("init fresh...", new_state->matrix);
 		}
 		KAMOFLAGE_DEBUG("New state: %p\n", new_state);
@@ -1716,7 +1702,7 @@ namespace KammoGUI {
 		auto previous_filter = state->current_filter;
 
 		if(state_stack.size() <= 1)
-			throw GnuVGStateStackEmpty(parent->get_id());
+			throw GnuVGStateStackEmpty(canvas->get_id());
 
 		auto old_state = state_stack.back();
 
@@ -1970,10 +1956,10 @@ namespace KammoGUI {
 		GNUVG_APPLY_PROFILER_GUARD(regenerate_scissors);
 
 		SVGRect final_clip(0, 0,
-				   parent->window_width,
-				   parent->window_height);
+				   canvas->window_width,
+				   canvas->window_height);
 
-		parent->loadFundamentalMatrix();
+		canvas->loadFundamentalMatrix();
 		bool do_clipping = false;
 		for(auto s : state_stack) {
 			VGfloat m[9];
@@ -2008,7 +1994,7 @@ namespace KammoGUI {
 				ry1,
 				rx2 - rx1,
 				ry2 - ry1);
-			parent->loadFundamentalMatrix();
+			canvas->loadFundamentalMatrix();
 			vgMultMatrix(s->matrix);
 
 			// if the current state doesn't
@@ -2050,11 +2036,11 @@ namespace KammoGUI {
 			state->paint_modes &= ~VG_STROKE_PATH;
 
 		vgSeti(VG_MATRIX_MODE, VG_MATRIX_GLYPH_USER_TO_SURFACE);
-		parent->loadFundamentalMatrix();
+		canvas->loadFundamentalMatrix();
 		vgMultMatrix(state->matrix);
 
 		vgSeti(VG_MATRIX_MODE, VG_MATRIX_PATH_USER_TO_SURFACE);
-		parent->loadFundamentalMatrix();
+		canvas->loadFundamentalMatrix();
 		vgMultMatrix(state->matrix);
 
 		if(state->dash.size() > 0) {
@@ -2950,9 +2936,9 @@ namespace KammoGUI {
 		/* convert from gnuVG float to unsigned integers */
 		gnuvgGetBoundingBox(sp);
 		bbx[0] = (unsigned int)sp[0];
-		bbx[1] = parent->window_height - ((unsigned int)sp[3]);
+		bbx[1] = canvas->window_height - ((unsigned int)sp[3]);
 		bbx[2] = (unsigned int)sp[2];
-		bbx[3] = parent->window_height - (unsigned int)sp[1];
+		bbx[3] = canvas->window_height - (unsigned int)sp[1];
 
 		state->update_bounding_box(bbx);
 	}
@@ -2972,9 +2958,9 @@ namespace KammoGUI {
 
 		unsigned int fcc[4];
 		fcc[0] = fc1_x;
-		fcc[1] = parent->window_height - fc2_y;
+		fcc[1] = canvas->window_height - fc2_y;
 		fcc[2] = fc2_x;
-		fcc[3] = parent->window_height - fc1_y;
+		fcc[3] = canvas->window_height - fc1_y;
 
 		/* check if outside the clip */
 		if(left > fcc[2])
@@ -3010,6 +2996,22 @@ namespace KammoGUI {
 		return rval;
 	}
 
+
+/********************************************************
+ *
+ *           gnuVGcanvas - SVGDocument Interface
+ *
+ ********************************************************/
+
+	void GnuVGCanvas::get_size_pixels(int &width_in_pixels, int &height_in_pixels) const {
+		width_in_pixels = window_width;
+		height_in_pixels = window_height;
+	}
+
+	void GnuVGCanvas::get_size_inches(float &width_in_inches, float &height_in_inches) const {
+		width_in_inches = window_width_inches;
+		height_in_inches = window_height_inches;
+	}
 
 /********************************************************
  *
@@ -3065,7 +3067,7 @@ namespace KammoGUI {
 			width_inches * width_inches +
 			height_inches  * height_inches);
 
-		auto DPI = diagonal / diagonal_inches;
+		DPI = diagonal / diagonal_inches;
 
 		vgLoadIdentity();
 		vgTranslate(0.0f, window_height);
@@ -3074,7 +3076,6 @@ namespace KammoGUI {
 		vgLoadIdentity();
 
 		for(auto doc : documents) {
-			doc->update_parameters(DPI);
 			doc->invalidate_bitmap_store();
 			doc->on_resize();
 		}

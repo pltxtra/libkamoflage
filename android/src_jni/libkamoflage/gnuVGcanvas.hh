@@ -568,7 +568,7 @@ namespace KammoGUI {
 			std::map<std::string, GnuVGFilter *> filters;
 
 			std::set<Animation *> animations;
-			GnuVGCanvas *parent;
+			GnuVGCanvas *canvas;
 			svg_t *svg;
 			std::string file_name;
 
@@ -579,8 +579,6 @@ namespace KammoGUI {
 			void process_active_animations();
 			void process_touch_for_animations();
 			int number_of_active_animations();
-
-			VGfloat DPI = 300.0f;
 
 			VGPaint fill;
 			VGPaint stroke;
@@ -746,9 +744,6 @@ namespace KammoGUI {
 			SVGDocument(const std::string& fname, GnuVGCanvas* parent);
 			SVGDocument(GnuVGCanvas* parent, const std::string& xml);
 
-			void get_canvas_size(int &width_in_pixels, int &height_in_pixels);
-			void get_canvas_size_inches(float &width_in_inches, float &height_in_inches);
-
 			// calculate a scaling factor to fit element into a specific
 			// size defined by "inches_wide" and "inches_tall"
 			double fit_to_inches(const GnuVGCanvas::ElementReference *element,
@@ -756,7 +751,9 @@ namespace KammoGUI {
 
 		public:
 			void render();
-			GnuVGCanvas* get_parent();
+			const GnuVGCanvas* get_canvas() {
+				return canvas;
+			}
 
 			const State *get_state() {
 				return state;
@@ -777,10 +774,6 @@ namespace KammoGUI {
 			virtual VGImage get_fresh_bitmap() override;
 			virtual void recycle_bitmap(VGImage vgi) override;
 
-			void update_parameters(VGfloat _DPI) {
-				DPI = _DPI;
-			}
-
 			void invalidate_bitmap_store();
 		};
 
@@ -791,9 +784,15 @@ namespace KammoGUI {
 		VGHandle gnuVGctx = VG_INVALID_HANDLE;
 		VGfloat fundamentalMatrix[9];
 		VGfloat bg_r, bg_g, bg_b;
+		VGfloat DPI = 300.0f;
 
 		ElementReference *active_element; // if we have an active motion associated with an element
 		MotionEvent m_evt; // motion event object
+
+	public: // GnuVGCanvas::SVGDocument interface
+		void get_size_pixels(int &width_in_pixels, int &height_in_pixels) const ;
+		void get_size_inches(float &width_in_inches, float &height_in_inches) const ;
+		VGfloat get_dpi() const { return DPI; }
 
 	public:
 		inline void loadFundamentalMatrix() {
