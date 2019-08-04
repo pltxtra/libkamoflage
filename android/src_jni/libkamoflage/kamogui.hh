@@ -313,6 +313,19 @@ namespace KammoGUI {
 		virtual void on_touch_event() = 0;
 	};
 
+	class SimpleAnimation : public Animation {
+	private:
+		std::function<void(float progress)> callback;
+	public:
+		SimpleAnimation(float duration, std::function<void(float progress)> _callback)
+			: Animation(duration)
+			, callback(_callback) {}
+		virtual void new_frame(float progress) override {
+			callback(progress);
+		}
+		virtual void on_touch_event() override { /* ignored */ }
+	};
+
 	class Canvas : public Widget {
 	public:
 		class SVGBob;
