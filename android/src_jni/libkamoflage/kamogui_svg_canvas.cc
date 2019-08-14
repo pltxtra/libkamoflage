@@ -63,7 +63,7 @@ KammoGUI::Animation::Animation(float _duration) :
 
 KammoGUI::Animation::~Animation() {}
 
-void KammoGUI::Animation::get_now(float &progress) {
+float KammoGUI::Animation::get_now() {
 	struct timespec after;
 	clock_gettime(CLOCK_MONOTONIC_RAW, &after);
 	after.tv_sec -= before.tv_sec;
@@ -73,12 +73,13 @@ void KammoGUI::Animation::get_now(float &progress) {
 		after.tv_nsec += 1000000000;
 	}
 	long microseconds = after.tv_sec * 1000000 + after.tv_nsec / 1000;
-	progress = microseconds;
+	float progress = (float)microseconds;
 	progress /= 1000000.0f; // convert to seconds
 
 	// if duration is 0 - then progress indicates time since start
 	if(duration > 0.0)
 		progress = progress / duration;
+	return progress;
 }
 
 void KammoGUI::Animation::start() {
@@ -87,27 +88,13 @@ void KammoGUI::Animation::start() {
 }
 
 bool KammoGUI::Animation::has_finished() {
-	if(!is_running) return true;
-
-	float progress = 0.0f;
-
-	get_now(progress);
-
-	if(duration > 0.0)
-		is_running = progress >= 1.0f ? false : true;
-	else
-		is_running = true;
-
-//	KAMOFLAGE_DEBUG("has_finished()? progress: %f, is_running: %d\n", progress, is_running);
 	return !is_running;
 }
 
 void KammoGUI::Animation::new_time_tick() {
 	if(!is_running) return;
 
-	float progress = 0.0f;
-
-	get_now(progress);
+	auto progress = get_now();
 	if(duration > 0.0 && progress >= 1.0) {
 		progress = 1.0;
 		is_running = false;

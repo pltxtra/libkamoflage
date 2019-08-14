@@ -295,7 +295,7 @@ namespace KammoGUI {
 		friend class SVGCanvas;
 
 	public:
-		void get_now(float &progress);
+		float get_now();
 
 		void start();
 		bool has_finished();
