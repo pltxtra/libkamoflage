@@ -59,9 +59,12 @@ KammoGUI::SVGCanvas::OperationFailedException::OperationFailedException() : jExc
 
 KammoGUI::Animation::Animation(float _duration) :
 	duration(_duration), is_running(false) {
+	KAMOFLAGE_ERROR("Animation created at %p\n", this);
 }
 
-KammoGUI::Animation::~Animation() {}
+KammoGUI::Animation::~Animation() {
+	KAMOFLAGE_ERROR("Animation deleted at %p (-> %p)\n", this, this + sizeof(Animation));
+}
 
 float KammoGUI::Animation::get_now() {
 	struct timespec after;

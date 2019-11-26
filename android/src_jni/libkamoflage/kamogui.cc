@@ -331,9 +331,38 @@ void KammoGUI::Widget::register_id() {
 
 /*** BEGIN ANDROID SPECIFIC INVALIDATION STUFF ***/
 void KammoGUI::Widget::invalidate() {
+	if(memcmp("PROTECTED", PROTECTOR, sizeof(PROTECTOR)) != 0) {
+		KAMOFLAGE_ERROR("PROTECTOR at %p (%p) is corrupted: %c%c%c%c - %c%c%c%c - %c\n",
+				this, PROTECTOR,
+				PROTECTOR[0],
+				PROTECTOR[1],
+				PROTECTOR[2],
+				PROTECTOR[3],
+				PROTECTOR[4],
+				PROTECTOR[5],
+				PROTECTOR[6],
+				PROTECTOR[7],
+				PROTECTOR[8]);
+		KAMOFLAGE_ERROR("             corrupted: %02x%02x%02x%02x - %02x%02x%02x%02x - %02x\n",
+				PROTECTOR[0],
+				PROTECTOR[1],
+				PROTECTOR[2],
+				PROTECTOR[3],
+				PROTECTOR[4],
+				PROTECTOR[5],
+				PROTECTOR[6],
+				PROTECTOR[7],
+				PROTECTOR[8]);
+		exit(1);
+	}
+
 	pthread_t self = pthread_self();
 	// OK, call the java method now
 	GET_INTERNAL_CLASS(jc,internal);
+	if(__ENV->IsSameObject(internal, NULL)) {
+		KAMOFLAGE_ERROR("internal is NULL - %s\n", id.c_str()); fflush(0);
+		return;
+	}
 	static jmethodID mid = __ENV->GetMethodID(
 		jc,
 		"invalidate_view","()V");
@@ -364,6 +393,15 @@ void KammoGUI::Widget::flush_invalidation_queue() {
 /*** END ANDROID SPECIFIC INVALIDATION STUFF ***/
 
 KammoGUI::Widget::Widget(bool this_is_ignored) : queued_for_invalidation(false) {
+	PROTECTOR[0] = 'P';
+	PROTECTOR[1] = 'R';
+	PROTECTOR[2] = 'O';
+	PROTECTOR[3] = 'T';
+	PROTECTOR[4] = 'E';
+	PROTECTOR[5] = 'C';
+	PROTECTOR[6] = 'T';
+	PROTECTOR[7] = 'E';
+	PROTECTOR[8] = 'D';
 	char uniq_id_buffer[128];
 	snprintf(uniq_id_buffer, 128, "__INTERNAL_UNIQ_PTR_%p", this);
 
@@ -452,10 +490,28 @@ void KammoGUI::Widget::inject_key_event(bool is_press, char chr) {
 }
 
 KammoGUI::Widget::Widget(std::string _id, jobject _jobj) : internal(_jobj), id(_id), queued_for_invalidation(false) {
+	PROTECTOR[0] = 'P';
+	PROTECTOR[1] = 'R';
+	PROTECTOR[2] = 'O';
+	PROTECTOR[3] = 'T';
+	PROTECTOR[4] = 'E';
+	PROTECTOR[5] = 'C';
+	PROTECTOR[6] = 'T';
+	PROTECTOR[7] = 'E';
+	PROTECTOR[8] = 'D';
 	register_id();
 }
 
 KammoGUI::Widget::Widget(std::string _id) : id(_id), queued_for_invalidation(false) {
+	PROTECTOR[0] = 'P';
+	PROTECTOR[1] = 'R';
+	PROTECTOR[2] = 'O';
+	PROTECTOR[3] = 'T';
+	PROTECTOR[4] = 'E';
+	PROTECTOR[5] = 'C';
+	PROTECTOR[6] = 'T';
+	PROTECTOR[7] = 'E';
+	PROTECTOR[8] = 'D';
 	register_id();
 }
 

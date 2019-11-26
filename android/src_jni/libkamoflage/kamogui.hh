@@ -124,6 +124,7 @@ namespace KammoGUI {
 		void register_id();
 
 	protected:
+		char PROTECTOR[9];
 		jobject internal;
 
 		std::string id;

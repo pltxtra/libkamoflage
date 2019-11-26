@@ -96,6 +96,8 @@ namespace KammoGUI {
 		: jException(id + " : element does not exist.", jException::sanity_error) {}
 	GnuVGCanvas::OperationFailedException::OperationFailedException()
 		: jException("GnuVGCanvas - operation failed.", jException::sanity_error) {}
+	GnuVGCanvas::EmptyReferenceException::EmptyReferenceException()
+		: jException("GnuVGCanvas - empty reference exception.", jException::sanity_error) {}
 
 /*************************
  *
@@ -752,9 +754,10 @@ namespace KammoGUI {
 		if(element) {
 			element->custom_data = this;
 			a.element = NULL;
+			a.source = NULL;
 		}
 
-//		KAMOFLAGE_DEBUG("ElementReference move operator = : element pointer %p\n", element);
+		KAMOFLAGE_ERROR("ElementReference move operator = : element pointer %p (%p <- %p)\n", element, this, &a);
 
 		return *this;
 	}
@@ -763,7 +766,7 @@ namespace KammoGUI {
 		: source(0)
 		, element(0)
 	{
-//		KAMOFLAGE_DEBUG("Move constructor.\n");
+		KAMOFLAGE_ERROR("Move constructor %p <- %p.\n", this, &original);
 		(*this) = std::move(original); // move
 	}
 
@@ -804,14 +807,20 @@ namespace KammoGUI {
 	}
 
 	GnuVGCanvas::ElementReference GnuVGCanvas::ElementReference::get_root() {
+		if(!(element && source))
+			throw EmptyReferenceException();
 		return ElementReference(source);
 	}
 
 	std::string GnuVGCanvas::ElementReference::get_id() {
+		if(!(element && source))
+			throw EmptyReferenceException();
 		return std::string(element->id);
 	}
 
 	std::string GnuVGCanvas::ElementReference::get_class() {
+		if(!(element && source))
+			throw EmptyReferenceException();
 		std::string class_string = "";
 		if(element->classes) {
 			int k = 0;
@@ -825,6 +834,9 @@ namespace KammoGUI {
 	}
 
 	void GnuVGCanvas::ElementReference::get_transform(SVGMatrix &matrix) {
+		if(!(element && source))
+			throw EmptyReferenceException();
+
 		svg_transform_t *transform = &(element->transform);
 
 		matrix.a = transform->m[0][0]; matrix.b = transform->m[0][1];
@@ -834,6 +846,8 @@ namespace KammoGUI {
 	}
 
 	void* GnuVGCanvas::ElementReference::pointer() {
+		if(!(element && source))
+			throw EmptyReferenceException();
 		return element;
 	}
 
@@ -859,13 +873,13 @@ namespace KammoGUI {
 	static inline bool get_length_attrib(const char** attributes, size_t id_len, const char* id, svg_length_t *final) {
 		char value[64];
 		if(strncmp(id, *attributes, id_len) == 0) {
-			KAMOFLAGE_ERROR("old value: %f, %d\n", final->value, final->unit);
+			KAMOFLAGE_DEBUG("old value: %f, %d\n", final->value, final->unit);
 			*attributes = &(*attributes)[id_len];
 			(*attributes) += get_value_str(value, sizeof(value), *attributes);
-			KAMOFLAGE_ERROR("value parsed: %s\n", value);
+			KAMOFLAGE_DEBUG("value parsed: %s\n", value);
 			_svg_length_init_from_str(final, value);
 
-			KAMOFLAGE_ERROR("final: %f, %d\n", final->value, final->unit);
+			KAMOFLAGE_DEBUG("final: %f, %d\n", final->value, final->unit);
 
 			return true;
 		} else {
@@ -887,23 +901,23 @@ namespace KammoGUI {
 		svg_group_t *group = &(element->e.group);
 		while(attributes[0] != '\0') {
 			if(get_length_attrib(&attributes, length("width="), "width=", &group->width)) {
-				KAMOFLAGE_ERROR("group->width was set\n");
+				KAMOFLAGE_DEBUG("group->width was set\n");
 				continue;
 			}
 			else if(get_length_attrib(&attributes, length("height="), "height=", &group->height)) {
-				KAMOFLAGE_ERROR("group->height was set\n");
+				KAMOFLAGE_DEBUG("group->height was set\n");
 				continue;
 			}
 			else if(get_length_attrib(&attributes, length("x="), "x=", &group->x)) {
-				KAMOFLAGE_ERROR("group->x was set\n");
+				KAMOFLAGE_DEBUG("group->x was set\n");
 				continue;
 			}
 			else if(get_length_attrib(&attributes, length("y="), "y=", &group->y)) {
-				KAMOFLAGE_ERROR("group->y was set\n");
+				KAMOFLAGE_DEBUG("group->y was set\n");
 				continue;
 			}
 			else {
-				KAMOFLAGE_ERROR("no group attribute was set [%s]\n", attributes);
+				KAMOFLAGE_DEBUG("no group attribute was set [%s]\n", attributes);
 				skip_attrib(&attributes);
 			}
 		}
@@ -913,29 +927,31 @@ namespace KammoGUI {
 		auto attr = &(element->e.rect);
 		while(attributes[0] != '\0') {
 			if(get_length_attrib(&attributes, length("width="), "width=", &attr->width)) {
-				KAMOFLAGE_ERROR("attr->width was set\n");
+				KAMOFLAGE_DEBUG("attr->width was set\n");
 				continue;
 			}
 			else if(get_length_attrib(&attributes, length("height="), "height=", &attr->height)) {
-				KAMOFLAGE_ERROR("attr->height was set\n");
+				KAMOFLAGE_DEBUG("attr->height was set\n");
 				continue;
 			}
 			else if(get_length_attrib(&attributes, length("x="), "x=", &attr->x)) {
-				KAMOFLAGE_ERROR("attr->x was set\n");
+				KAMOFLAGE_DEBUG("attr->x was set\n");
 				continue;
 			}
 			else if(get_length_attrib(&attributes, length("y="), "y=", &attr->y)) {
-				KAMOFLAGE_ERROR("attr->y was set\n");
+				KAMOFLAGE_DEBUG("attr->y was set\n");
 				continue;
 			}
 			else {
-				KAMOFLAGE_ERROR("no group attribute was set\n");
+				KAMOFLAGE_DEBUG("no group attribute was set\n");
 				skip_attrib(&attributes);
 			}
 		}
 	}
 
 	void GnuVGCanvas::ElementReference::set_attributes(const std::string &attribute_string) {
+		if(!(element && source))
+			throw EmptyReferenceException();
 		auto cstr = attribute_string.c_str();
 		if(element) {
 			switch(element->type) {
@@ -943,55 +959,57 @@ namespace KammoGUI {
 				parse_attributes_svg(cstr);
 				break;
 			case SVG_ELEMENT_TYPE_GROUP:
-				KAMOFLAGE_ERROR("::set_atributes() not implemented for <group>\n");
+				KAMOFLAGE_DEBUG("::set_atributes() not implemented for <group>\n");
 				break;
 			case SVG_ELEMENT_TYPE_DEFS:
-				KAMOFLAGE_ERROR("::set_atributes() not implemented for <defs>\n");
+				KAMOFLAGE_DEBUG("::set_atributes() not implemented for <defs>\n");
 				break;
 			case SVG_ELEMENT_TYPE_USE:
-				KAMOFLAGE_ERROR("::set_atributes() not implemented for <use>\n");
+				KAMOFLAGE_DEBUG("::set_atributes() not implemented for <use>\n");
 				break;
 			case SVG_ELEMENT_TYPE_SYMBOL:
-				KAMOFLAGE_ERROR("::set_atributes() not implemented for <symbol>\n");
+				KAMOFLAGE_DEBUG("::set_atributes() not implemented for <symbol>\n");
 				break;
 			case SVG_ELEMENT_TYPE_PATH:
-				KAMOFLAGE_ERROR("::set_atributes() not implemented for <path>\n");
+				KAMOFLAGE_DEBUG("::set_atributes() not implemented for <path>\n");
 				break;
 			case SVG_ELEMENT_TYPE_CIRCLE:
-				KAMOFLAGE_ERROR("::set_atributes() not implemented for <circle>\n");
+				KAMOFLAGE_DEBUG("::set_atributes() not implemented for <circle>\n");
 				break;
 			case SVG_ELEMENT_TYPE_ELLIPSE:
-				KAMOFLAGE_ERROR("::set_atributes() not implemented for <ellipse>\n");
+				KAMOFLAGE_DEBUG("::set_atributes() not implemented for <ellipse>\n");
 				break;
 			case SVG_ELEMENT_TYPE_LINE:
-				KAMOFLAGE_ERROR("::set_atributes() not implemented for <line>\n");
+				KAMOFLAGE_DEBUG("::set_atributes() not implemented for <line>\n");
 				break;
 			case SVG_ELEMENT_TYPE_RECT:
 				parse_attributes_rect(cstr);
 				break;
 			case SVG_ELEMENT_TYPE_TEXT:
-				KAMOFLAGE_ERROR("::set_atributes() not implemented for <text>\n");
+				KAMOFLAGE_DEBUG("::set_atributes() not implemented for <text>\n");
 				break;
 			case SVG_ELEMENT_TYPE_GRADIENT:
-				KAMOFLAGE_ERROR("::set_atributes() not implemented for <gradient>\n");
+				KAMOFLAGE_DEBUG("::set_atributes() not implemented for <gradient>\n");
 				break;
 			case SVG_ELEMENT_TYPE_GRADIENT_STOP:
-				KAMOFLAGE_ERROR("::set_atributes() not implemented for <stop>\n");
+				KAMOFLAGE_DEBUG("::set_atributes() not implemented for <stop>\n");
 				break;
 			case SVG_ELEMENT_TYPE_PATTERN:
-				KAMOFLAGE_ERROR("::set_atributes() not implemented for <pattern>\n");
+				KAMOFLAGE_DEBUG("::set_atributes() not implemented for <pattern>\n");
 				break;
 			case SVG_ELEMENT_TYPE_IMAGE:
-				KAMOFLAGE_ERROR("::set_atributes() not implemented for <image>\n");
+				KAMOFLAGE_DEBUG("::set_atributes() not implemented for <image>\n");
 				break;
 			case SVG_ELEMENT_TYPE_FILTER:
-				KAMOFLAGE_ERROR("::set_atributes() not implemented for <filter>\n");
+				KAMOFLAGE_DEBUG("::set_atributes() not implemented for <filter>\n");
 				break;
 			}
 		}
 	}
 
 	void GnuVGCanvas::ElementReference::set_transform(const SVGMatrix &matrix) {
+		if(!(element && source))
+			throw EmptyReferenceException();
 
 		_svg_transform_init_matrix(&(element->transform),
 					   matrix.a, matrix.b,
@@ -1000,9 +1018,13 @@ namespace KammoGUI {
 	}
 
 	void GnuVGCanvas::ElementReference::set_xlink_href(const std::string &url) {
+		if(!(element && source))
+			throw EmptyReferenceException();
 	}
 
 	std::string GnuVGCanvas::ElementReference::get_text_content() {
+		if(!(element && source))
+			throw EmptyReferenceException();
 		const char *content = "";
 		if(element && element->type == SVG_ELEMENT_TYPE_TEXT) {
 			content = _svg_text_get_content(&(element->e.text));
@@ -1011,6 +1033,8 @@ namespace KammoGUI {
 	}
 
 	void GnuVGCanvas::ElementReference::set_text_content(const std::string &content) {
+		if(!(element && source))
+			throw EmptyReferenceException();
 		if(element) {
 			if(element->type == SVG_ELEMENT_TYPE_TEXT) {
 				_svg_text_set_content(&(element->e.text), content.c_str());
@@ -1019,16 +1043,22 @@ namespace KammoGUI {
 	}
 
 	void GnuVGCanvas::ElementReference::set_display(const std::string &value) {
+		if(!(element && source))
+			throw EmptyReferenceException();
 		if(element) {
 			_svg_element_set_display(element, value.c_str());
 		}
 	}
 	void GnuVGCanvas::ElementReference::set_style(const std::string &value) {
+		if(!(element && source))
+			throw EmptyReferenceException();
 		if(element) {
 			_svg_element_set_style(element, value.c_str());
 		}
 	}
 	void GnuVGCanvas::ElementReference::set_line_coords(float x1, float y1, float x2, float y2) {
+		if(!(element && source))
+			throw EmptyReferenceException();
 		if(element && element->type == SVG_ELEMENT_TYPE_LINE) {
 			element->e.line.x1.value = x1;
 			element->e.line.y1.value = y1;
@@ -1038,6 +1068,8 @@ namespace KammoGUI {
 	}
 
 	void GnuVGCanvas::ElementReference::set_rect_coords(float x, float y, float width, float height) {
+		if(!(element && source))
+			throw EmptyReferenceException();
 		if(element && element->type == SVG_ELEMENT_TYPE_RECT) {
 			element->e.rect.x.value = x;
 			element->e.rect.y.value = y;
@@ -1049,6 +1081,8 @@ namespace KammoGUI {
 	void GnuVGCanvas::ElementReference::set_event_handler(std::function<void(SVGDocument *source,
 										 ElementReference *e,
 										 const MotionEvent &event)> _event_handler) {
+		if(!(element && source))
+			throw EmptyReferenceException();
 		event_handler = _event_handler;
 		element->custom_data = this;
 
@@ -1058,10 +1092,14 @@ namespace KammoGUI {
 	}
 
 	void GnuVGCanvas::ElementReference::trigger_event_handler(const MotionEvent &event) {
+		if(!(element && source))
+			throw EmptyReferenceException();
 		event_handler(source, this, event);
 	}
 
 	void GnuVGCanvas::ElementReference::add_svg_child(const std::string &svg_chunk) {
+		if(!(element && source))
+			throw EmptyReferenceException();
 		const char *txt = svg_chunk.c_str();
 		size_t len = svg_chunk.size();
 
@@ -1073,6 +1111,8 @@ namespace KammoGUI {
 
 	GnuVGCanvas::ElementReference GnuVGCanvas::ElementReference::add_element_clone(const std::string &new_id,
 										       const GnuVGCanvas::ElementReference &element_to_clone) {
+		if(!(element && source))
+			throw EmptyReferenceException();
 		const char *nid = NULL;
 		if(new_id != "") // if the string is empty we want to use the NULL pointer instead
 			nid = new_id.c_str();
@@ -1083,6 +1123,8 @@ namespace KammoGUI {
 	}
 
 	void GnuVGCanvas::ElementReference::get_viewport(SVGRect &rect) const {
+		if(!(element && source))
+			throw EmptyReferenceException();
 		svg_length_t x, y, w, h;
 
 		_svg_element_get_viewport(element, &x, &y, &w, &h);
@@ -1096,6 +1138,8 @@ namespace KammoGUI {
 	}
 
 	void GnuVGCanvas::ElementReference::get_boundingbox(SVGRect &rect) {
+		if(!(element && source))
+			throw EmptyReferenceException();
 		if(element) {
 			rect.x = element->bounding_box.left;
 			rect.y = element->bounding_box.top;
@@ -1136,6 +1180,8 @@ namespace KammoGUI {
 	}
 
 	GnuVGCanvas::ElementReference GnuVGCanvas::ElementReference::find_child_by_class(const std::string &class_name) {
+		if(!(element && source))
+			throw EmptyReferenceException();
 		svg_element_t *new_element = NULL;
 
 		(void) _svg_fetch_element_by_class (source->svg, class_name.c_str(), element, &new_element);
@@ -1214,11 +1260,11 @@ namespace KammoGUI {
 //		KAMOFLAGE_DEBUG("process animations: (%p) %p\n", this, &animations);
 		std::set<Animation *>::iterator k = animations.begin();
 		while(k != animations.end()) {
-			(*k)->new_time_tick();
 			if((*k)->has_finished()) {
 				delete (*k);
 				k = animations.erase(k);
 			} else {
+				(*k)->new_time_tick();
 				k++;
 			}
 		}
@@ -1297,7 +1343,7 @@ namespace KammoGUI {
 	GnuVGCanvas::SVGDocument::SVGDocument(GnuVGCanvas* _canvas)
 		: canvas(_canvas)
 	{
-		KAMOFLAGE_ERROR("Will tell gnuVG to use context from canvas(%p)->%p\n",
+		KAMOFLAGE_DEBUG("Will tell gnuVG to use context from canvas(%p)->%p\n",
 				canvas, (void *)(canvas == NULL ? nullptr : (void *)canvas->gnuVGctx));
 		gnuvgUseContext(canvas->gnuVGctx);
 
@@ -3166,7 +3212,7 @@ namespace KammoGUI {
 	}
 
 	void GnuVGCanvas::canvas_motion_event(JNIEnv *env) {
-		KAMOFLAGE_ERROR("    canvas_motion_event (%f, %f)\n", m_evt.get_x(), m_evt.get_y());
+		KAMOFLAGE_DEBUG("    canvas_motion_event (%f, %f)\n", m_evt.get_x(), m_evt.get_y());
 
 		for(auto document : documents) {
 			document->process_touch_for_animations();
@@ -3176,7 +3222,7 @@ namespace KammoGUI {
 		{
 			svg_element_t *element = NULL;
 
-			KAMOFLAGE_ERROR("Will scan docs..\n");
+			KAMOFLAGE_DEBUG("Will scan docs..\n");
 			int k = documents.size() - 1;
 			for(; k >= 0 && element == NULL; k--) {
 				GnuVGCanvas::SVGDocument *document = (documents[k]);
@@ -3184,14 +3230,14 @@ namespace KammoGUI {
 								 m_evt.get_x(), m_evt.get_y());
 				if(new_element) {
 					element = new_element;
-					KAMOFLAGE_ERROR("  element %p found in %s\n",
+					KAMOFLAGE_DEBUG("  element %p found in %s\n",
 							element, document->file_name.c_str());
 				}
-				KAMOFLAGE_ERROR("  element = %p\n", element);
+				KAMOFLAGE_DEBUG("  element = %p\n", element);
 			}
 
 			if(element) {
-				KAMOFLAGE_ERROR("   KAMOFLAGE action_down on element: %p (custom: %p)\n", element, element->custom_data);
+				KAMOFLAGE_DEBUG("   KAMOFLAGE action_down on element: %p (custom: %p)\n", element, element->custom_data);
 				if(element->custom_data == NULL) {
 					active_element = NULL;
 					KAMOFLAGE_ERROR("GnuVGCanvas::canvas_motion_event() - event handler is missing it's ElementReference - you probably deleted the ElementReference after calling set_event_handler(). Or maybe you used only a temporary ElementReference object.");

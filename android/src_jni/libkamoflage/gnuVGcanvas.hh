@@ -834,6 +834,11 @@ namespace KammoGUI {
 		public:
 			OperationFailedException();
 		};
+
+		class EmptyReferenceException : public jException {
+		public:
+			EmptyReferenceException();
+		};
 	};
 };
 
