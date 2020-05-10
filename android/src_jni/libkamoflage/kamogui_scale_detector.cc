@@ -54,7 +54,7 @@ bool KammoGUI::ScaleGestureDetector::on_touch_event(const KammoGUI::MotionEvent 
 		// If it's an ACTION_DOWN we're beginning a new event stream.
 		// This means the app probably didn't give us all the events. Shame on it.
 		if (mInProgress) {
-		mListener->on_scale_end(this);
+			mListener->on_scale_end(this);
 			mInProgress = false;
 		}
 		if (streamComplete) {
@@ -126,7 +126,7 @@ bool KammoGUI::ScaleGestureDetector::on_touch_event(const KammoGUI::MotionEvent 
 			mPrevSpan = mCurrSpan;
 		}
 	}
-	return true;
+	return is_in_progress();
 }
 
 /**
