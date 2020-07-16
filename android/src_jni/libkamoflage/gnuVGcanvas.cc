@@ -19,6 +19,8 @@
  *
  */
 
+#include <thread>
+#include <queue>
 #include <jni.h>
 #include <android/log.h>
 
@@ -3275,11 +3277,57 @@ namespace KammoGUI {
 		}
 	}
 
+	struct Idnf {
+		std::string id;
+		std::function<void()> f;
+	};
+
+	static std::thread::id gnuvg_ui_thread_id;
+	static std::mutex gnuvg_ui_thread_mutex;
+	static std::queue<Idnf> gnuvg_ui_thread_queue;
+
+	void GnuVGCanvas::run_on_ui_thread(const std::string &debug_id, std::function<void()> f) {
+		if(std::this_thread::get_id() == gnuvg_ui_thread_id) {
+			KAMOFLAGE_ERROR("----------- *** GnuVGCanvas::run_on_ui_thread() - direct for %s\n", debug_id.c_str());
+			f();
+		} else {
+			KAMOFLAGE_ERROR("----------- *** GnuVGCanvas::run_on_ui_thread() - queued for %s\n", debug_id.c_str());
+			std::lock_guard<std::mutex> lock_guard(gnuvg_ui_thread_mutex);
+			Idnf a;
+			a.id = debug_id; a.f = f;
+			gnuvg_ui_thread_queue.push(a);
+		}
+		KAMOFLAGE_ERROR("----------- *** GnuVGCanvas::run_on_ui_thread() - completed for %s!\n", debug_id.c_str());
+	}
+
+	static void __GnuVGCanvas__pop_run_on_ui_thread_queue() {
+		std::vector<Idnf> tasks;
+		{
+			KAMOFLAGE_ERROR("----------- *** __GnuVGCanvas__pop_run_on_ui_thread() - acquiring lock...\n");
+			std::lock_guard<std::mutex> lock_guard(gnuvg_ui_thread_mutex);
+			KAMOFLAGE_ERROR("----------- *** __GnuVGCanvas__pop_run_on_ui_thread() - got lock...\n");
+			while(!gnuvg_ui_thread_queue.empty()) {
+				auto idnf = gnuvg_ui_thread_queue.front();
+				tasks.push_back(idnf);
+				gnuvg_ui_thread_queue.pop();
+				KAMOFLAGE_ERROR("----------- *** __GnuVGCanvas__pop_run_on_ui_thread() - unpopped task for %s...\n", idnf.id.c_str());
+			}
+			KAMOFLAGE_ERROR("----------- *** __GnuVGCanvas__pop_run_on_ui_thread() - returning lock!\n");
+		}
+
+		for(auto task : tasks) {
+			KAMOFLAGE_ERROR("----------- *** __GnuVGCanvas__pop_run_on_ui_thread() - executing call for %s...\n", task.id.c_str());
+			task.f();
+			KAMOFLAGE_ERROR("----------- *** __GnuVGCanvas__pop_run_on_ui_thread() - call executed for %s!\n", task.id.c_str());
+		}
+	}
+
 };
 
 extern "C" {
 	JNIEXPORT void Java_com_toolkits_kamoflage_gnuVGView_init
 	(JNIEnv *env, jclass jcl, jlong nativeID) {
+		KammoGUI::gnuvg_ui_thread_id = std::this_thread::get_id();
 		KammoGUI::GnuVGCanvas *cnv =
 			(KammoGUI::GnuVGCanvas *)nativeID;
 		cnv->init(env);
@@ -3336,6 +3384,8 @@ extern "C" {
 	(JNIEnv *env, jclass jcl, jlong nativeID) {
 		KammoGUI::GnuVGCanvas *cnv =
 			(KammoGUI::GnuVGCanvas *)nativeID;
+		KammoGUI::__GnuVGCanvas__pop_run_on_ui_thread_queue();
+		//std::lock_guard<std::mutex> lock_guard(KammoGUI::gnuvg_ui_thread_mutex);
 		cnv->step(env);
 
 		print_timing();

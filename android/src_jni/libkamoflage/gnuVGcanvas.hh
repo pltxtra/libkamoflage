@@ -806,6 +806,8 @@ namespace KammoGUI {
 
 		void set_bg_color(double r, double g, double b);
 
+		static void run_on_ui_thread(const std::string &debug_id, std::function<void()> f);
+
 		/*************
 		 *
 		 * internal android callbacks - do not use them from any application code, it won't port...
@@ -840,6 +842,7 @@ namespace KammoGUI {
 			EmptyReferenceException();
 		};
 	};
+
 };
 
 #endif
