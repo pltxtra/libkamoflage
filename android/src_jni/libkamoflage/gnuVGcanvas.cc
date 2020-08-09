@@ -1259,7 +1259,8 @@ namespace KammoGUI {
 	}
 
 	void GnuVGCanvas::SVGDocument::process_active_animations() {
-//		KAMOFLAGE_DEBUG("process animations: (%p) %p\n", this, &animations);
+		KAMOFLAGE_DEBUG("process animations: (%p) %p\n", this, &animations);
+		KAMOFLAGE_DEBUG("::process_active_animations() for %s\n", file_name.c_str());
 		std::set<Animation *>::iterator k = animations.begin();
 		while(k != animations.end()) {
 			if((*k)->has_finished()) {
@@ -1270,6 +1271,7 @@ namespace KammoGUI {
 				k++;
 			}
 		}
+		KAMOFLAGE_DEBUG("::process_active_animations() COMPLETED for %s\n", file_name.c_str());
 	}
 
 	void GnuVGCanvas::SVGDocument::process_touch_for_animations() {
@@ -1296,24 +1298,7 @@ namespace KammoGUI {
 			new_animation->start();
 		}
 
-		Widget::queue_for_invalidate(canvas);
-
 		auto pinternal = canvas->internal;
-
-		KammoGUI::run_on_GUI_thread(
-			[pinternal]() {
-				pthread_t self = pthread_self();
-
-				GET_INTERNAL_CLASS(jc, pinternal);
-				static jmethodID mid = __ENV->GetMethodID(
-					jc,
-					"start_animation","()V");
-
-				__ENV->CallVoidMethod(
-					pinternal, mid
-					);
-			}
-			);
 	}
 
 	void GnuVGCanvas::SVGDocument::stop_animation(Animation *animation_to_stop) {
@@ -1451,10 +1436,13 @@ namespace KammoGUI {
 	void GnuVGCanvas::SVGDocument::render() {
 		KAMOFLAGE_DEBUG("\n\n\nSVGDocument::render() : top state: %p\n",
 				state);
+		KAMOFLAGE_DEBUG("::render() for %s\n", file_name.c_str());
 
 		vgSetPaint(stroke, VG_STROKE_PATH);
 		vgSetPaint(fill, VG_FILL_PATH);
 		(void) svg_render(svg);
+
+		KAMOFLAGE_DEBUG("::render() for %s COMPLETED\n", file_name.c_str());
 	}
 
 /********************************************************
@@ -2759,12 +2747,16 @@ namespace KammoGUI {
 	}
 
 	svg_status_t GnuVGCanvas::SVGDocument::render_path(void* closure, void **path_cache) {
+		KAMOFLAGE_DEBUG("::render_path() -- A\n");
 		gnuvgResetBoundingBox();
+		KAMOFLAGE_DEBUG("::render_path() -- B\n");
 
 		GnuVGCanvas::SVGDocument* context = (GnuVGCanvas::SVGDocument*)closure;
 		context->use_state_on_top();
 
+		KAMOFLAGE_DEBUG("::render_path() -- C\n");
 		GNUVG_APPLY_PROFILER_GUARD(render_path_cache);
+		KAMOFLAGE_DEBUG("::render_path() -- D\n");
 
 		VGPath this_path;
 		if((*path_cache) == NULL) {
@@ -2781,10 +2773,13 @@ namespace KammoGUI {
 		} else
 			this_path = (VGPath)(*path_cache);
 
+		KAMOFLAGE_DEBUG("::render_path() -- E\n");
 		vgDrawPath(this_path, context->state->paint_modes);
+		KAMOFLAGE_DEBUG("::render_path() -- F\n");
 
 		context->fetch_gnuvg_boundingbox();
 		vgSeti(VG_SCISSORING, VG_FALSE);
+		KAMOFLAGE_DEBUG("::render_path() -- G\n");
 
 		return SVG_STATUS_SUCCESS;
 	}
@@ -3155,7 +3150,9 @@ namespace KammoGUI {
 
 			document->process_active_animations();
 			active_animations += document->number_of_active_animations();
+			KAMOFLAGE_DEBUG("document->on_render() - calling.\n");
 			document->on_render();
+			KAMOFLAGE_DEBUG("document->on_render() - returned.\n");
 			document->render();
 		}
 
@@ -3288,37 +3285,37 @@ namespace KammoGUI {
 
 	void GnuVGCanvas::run_on_ui_thread(const std::string &debug_id, std::function<void()> f) {
 		if(std::this_thread::get_id() == gnuvg_ui_thread_id) {
-			KAMOFLAGE_ERROR("----------- *** GnuVGCanvas::run_on_ui_thread() - direct for %s\n", debug_id.c_str());
+			KAMOFLAGE_DEBUG("----------- *** GnuVGCanvas::run_on_ui_thread() - direct for %s\n", debug_id.c_str());
 			f();
 		} else {
-			KAMOFLAGE_ERROR("----------- *** GnuVGCanvas::run_on_ui_thread() - queued for %s\n", debug_id.c_str());
+			KAMOFLAGE_DEBUG("----------- *** GnuVGCanvas::run_on_ui_thread() - queued for %s\n", debug_id.c_str());
 			std::lock_guard<std::mutex> lock_guard(gnuvg_ui_thread_mutex);
 			Idnf a;
 			a.id = debug_id; a.f = f;
 			gnuvg_ui_thread_queue.push(a);
 		}
-		KAMOFLAGE_ERROR("----------- *** GnuVGCanvas::run_on_ui_thread() - completed for %s!\n", debug_id.c_str());
+		KAMOFLAGE_DEBUG("----------- *** GnuVGCanvas::run_on_ui_thread() - completed for %s!\n", debug_id.c_str());
 	}
 
 	static void __GnuVGCanvas__pop_run_on_ui_thread_queue() {
 		std::vector<Idnf> tasks;
 		{
-			KAMOFLAGE_ERROR("----------- *** __GnuVGCanvas__pop_run_on_ui_thread() - acquiring lock...\n");
+			KAMOFLAGE_DEBUG("----------- *** __GnuVGCanvas__pop_run_on_ui_thread() - acquiring lock...\n");
 			std::lock_guard<std::mutex> lock_guard(gnuvg_ui_thread_mutex);
-			KAMOFLAGE_ERROR("----------- *** __GnuVGCanvas__pop_run_on_ui_thread() - got lock...\n");
+			KAMOFLAGE_DEBUG("----------- *** __GnuVGCanvas__pop_run_on_ui_thread() - got lock...\n");
 			while(!gnuvg_ui_thread_queue.empty()) {
 				auto idnf = gnuvg_ui_thread_queue.front();
 				tasks.push_back(idnf);
 				gnuvg_ui_thread_queue.pop();
-				KAMOFLAGE_ERROR("----------- *** __GnuVGCanvas__pop_run_on_ui_thread() - unpopped task for %s...\n", idnf.id.c_str());
+				KAMOFLAGE_DEBUG("----------- *** __GnuVGCanvas__pop_run_on_ui_thread() - unpopped task for %s...\n", idnf.id.c_str());
 			}
-			KAMOFLAGE_ERROR("----------- *** __GnuVGCanvas__pop_run_on_ui_thread() - returning lock!\n");
+			KAMOFLAGE_DEBUG("----------- *** __GnuVGCanvas__pop_run_on_ui_thread() - returning lock!\n");
 		}
 
 		for(auto task : tasks) {
-			KAMOFLAGE_ERROR("----------- *** __GnuVGCanvas__pop_run_on_ui_thread() - executing call for %s...\n", task.id.c_str());
+			KAMOFLAGE_DEBUG("----------- *** __GnuVGCanvas__pop_run_on_ui_thread() - executing call for %s...\n", task.id.c_str());
 			task.f();
-			KAMOFLAGE_ERROR("----------- *** __GnuVGCanvas__pop_run_on_ui_thread() - call executed for %s!\n", task.id.c_str());
+			KAMOFLAGE_DEBUG("----------- *** __GnuVGCanvas__pop_run_on_ui_thread() - call executed for %s!\n", task.id.c_str());
 		}
 	}
 
@@ -3409,12 +3406,9 @@ extern "C" {
 	(JNIEnv *env, jclass jc, jlong nativeID) {
 		KammoGUI::GnuVGCanvas *cnv =
 			(KammoGUI::GnuVGCanvas *)nativeID;
+		KAMOFLAGE_DEBUG("cnv->canvas_motion_event() - calling...\n");
 		cnv->canvas_motion_event(env);
-		KammoGUI::run_on_GUI_thread(
-			[]() {
-				KammoGUI::GnuVGCanvas::flush_invalidation_queue();
-			}
-			);
+		KAMOFLAGE_DEBUG("cnv->canvas_motion_event() - RETURNED!\n");
 	}
 
 }
