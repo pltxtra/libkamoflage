@@ -31,6 +31,7 @@
 #include <sstream>
 #include <iostream>
 #include <iomanip>
+#include <functional>
 
 namespace {
 
@@ -56,7 +57,7 @@ static _Unwind_Reason_Code unwind_callback(struct _Unwind_Context* context, void
 
 std::mutex jException::mutex;
 std::atomic_bool jException::callback_enabled;
-std::function<void(const std::string& backtrace)> jException::backtrace_callback(false);
+std::function<void(const std::string& backtrace)> jException::backtrace_callback;
 
 static size_t capture_backtrace(void** buffer, size_t max) {
     BacktraceState state = {buffer, buffer + max};

@@ -40,14 +40,13 @@
 
 #include <errno.h>
 
-#include <jni.h>
-
 //#define DEBUG_JTHREAD_LOCKS
 
 #include "jinformer.hh"
 #include "jthread.hh"
 
 #ifdef ANDROID
+#include <jni.h>
 JNIEnv *get_env_for_thread();
 #endif
 
@@ -438,7 +437,7 @@ void *jThread_internalThreadMain(void *throbj) {
 		JNGLDRUM_DEBUG_("jThread_internalThreadMain, calling body %p...", thread);
 		thread->thread_body();
 		JNGLDRUM_DEBUG_("jThread_internalThreadMain, leaving body %p...", thread);
-	} catch(jException e) {
+	} catch(jException& e) {
 		std::ostringstream stream;
 		stream << "Caught an unhandled exception, aborting. [" << e.message << "]\n";
 		jInformer::inform(stream.str());

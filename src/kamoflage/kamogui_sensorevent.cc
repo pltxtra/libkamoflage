@@ -51,6 +51,7 @@ namespace KammoGUI {
 
 };
 
+#ifdef ANDROID
 extern "C" {
 
 	JNIEXPORT void JNICALL Java_com_toolkits_kamoflage_SensorHandler_handleEvent
@@ -62,3 +63,4 @@ extern "C" {
 	}
 
 }
+#endif

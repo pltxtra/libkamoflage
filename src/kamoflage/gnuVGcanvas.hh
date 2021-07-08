@@ -24,7 +24,12 @@
 #include "kamogui.hh"
 
 #include <VG/openvg.h>
+#include <libsvg/svg.h>
 #include <sstream>
+
+extern "C" {
+	extern void pop_gnuvgcanvas_on_ui_thread_queue();
+}
 
 namespace KammoGUI {
 
@@ -787,7 +792,6 @@ namespace KammoGUI {
 		VGfloat DPI = 300.0f;
 
 		ElementReference *active_element; // if we have an active motion associated with an element
-		MotionEvent m_evt; // motion event object
 
 	public: // GnuVGCanvas::SVGDocument interface
 		void get_size_pixels(int &width_in_pixels, int &height_in_pixels) const ;
@@ -810,21 +814,16 @@ namespace KammoGUI {
 
 		/*************
 		 *
-		 * internal android callbacks - do not use them from any application code, it won't port...
+		 * internal callbacks - do not use them from any application code, it won't port...
 		 *
 		 *************/
-		void init(JNIEnv *env);
-		void resize(JNIEnv *env, int width, int height, float w_inches, float h_inches);
-		void step(JNIEnv *env);
-		void canvas_motion_event_init_event(
-			JNIEnv *env, long downTime, long eventTime, int androidAction, int pointerCount, int actionIndex,
-			float rawX, float rawY);
-		void canvas_motion_event_init_pointer(JNIEnv *env, int index, int id, float x, float y, float pressure);
-		void canvas_motion_event(JNIEnv *env);
-
+		void init();
+		void resize(int width, int height, float w_inches, float h_inches);
+		void step();
+		void register_motion_event(const MotionEvent &evt);
 
 	public:
-		GnuVGCanvas(std::string id, jobject jobj);
+		GnuVGCanvas(std::string id);
 		~GnuVGCanvas();
 
 		class NoSuchElementException : public jException {

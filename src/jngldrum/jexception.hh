@@ -28,6 +28,7 @@
 #include <exception>
 #include <atomic>
 #include <mutex>
+#include <functional>
 
 #ifndef __JEXCEPTION
 #define __JEXCEPTION

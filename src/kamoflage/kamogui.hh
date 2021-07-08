@@ -44,31 +44,25 @@
 
 #include "jngldrum/jexception.hh"
 
-#include <jni.h>
-
-#include <libsvg-android/svg-android-internal.h>
 #include <GLES2/gl2.h>
 #include <GLES2/gl2ext.h>
-
-extern JavaVM *__g_jvm;
-
-void __setup_env_for_thread(JNIEnv *env);
-JNIEnv *get_env_for_thread();
 
 /**************************************
  * BEGIN EventHandler creation macros *
  **************************************/
 
 #define KammoEventHandler_Declare(a,b) namespace a {			\
-					       class a : public  KammoGUI::EventHandler { \
-					       private:			\
-					       a() : EventHandler(b) {} \
-					       static a HandlerHolder;	\
-									\
-					       public:
+					       class __handler__ : public  KammoGUI::EventHandler { \
+                                               public: \
+					       __handler__() : EventHandler(b) { printf("Tjooofa\n"); } \
+					       void callee() { printf("Kurfo\n"); }
 
-#define KammoEventHandler_Instance(a) };				\
-					       a a::HandlerHolder;	\
+#define KammoEventHandler_Instance(a)          };		\
+					       __handler__ HandlerHolder;	\
+                                                                                \
+					       void __caller__() { \
+					       HandlerHolder.callee(); \
+					       } \
 					       }
 
 /**************************************
@@ -125,7 +119,6 @@ namespace KammoGUI {
 
 	protected:
 		char PROTECTOR[9];
-		jobject internal;
 
 		std::string id;
 
@@ -137,23 +130,6 @@ namespace KammoGUI {
 		friend class ContainerBase;
 		friend class Container;
 		friend class Tabs;
-
-		/***********************************************
-		 * begin invalidation stuff (android specific) *
-		 ***********************************************/
-	protected:
-		Widget(std::string id, jobject jobj);
-		void invalidate();
-		bool queued_for_invalidation;
-		static std::vector<Widget *> invalidation_queue;
-		static void queue_for_invalidate(Widget *wid);
-
-	public:
-		/// DO NOT CALL THIS FROM ANY APPLICATION CODE; INTERNAL!
-		static void flush_invalidation_queue();
-		/***********************************************
-		 * end invalidation stuff (android specific) *
-		 ***********************************************/
 
 	public:
 		Widget(std::string id);
@@ -178,9 +154,6 @@ namespace KammoGUI {
 
 		virtual void inject_key_event(bool is_press, char chr);
 
-//		/* don't call these directly, used internally! */
-//		void set_internal_reference(jobject jobj);
-
 		static void call_on_init();
 		static KammoGUI::Widget *get_widget(std::string id);
 	};
@@ -192,7 +165,7 @@ namespace KammoGUI {
 		virtual ~ContainerBase();
 		ContainerBase(bool this_is_ignored);
 	public:
-		ContainerBase(std::string id, jobject jobj);
+		ContainerBase(std::string id);
 
 		virtual void clear() = 0;
 		virtual void add(Widget &wid) = 0;
@@ -203,7 +176,7 @@ namespace KammoGUI {
 	protected:
 	public:
 		virtual ~Container();
-		Container(std::string id, jobject jobj);
+		Container(std::string id);
 		Container(bool horizontal);
 
 		virtual void clear();
@@ -215,7 +188,7 @@ namespace KammoGUI {
 		Widget *current_view;
 
 	public:
-		Tabs(std::string id, jobject jobj);
+		Tabs(std::string id);
 
 		virtual void clear();
 		virtual void add(Widget &wid);
@@ -231,7 +204,7 @@ namespace KammoGUI {
 	protected:
 
 	public:
-		Window(std::string id, jobject jobj);
+		Window(std::string id);
 		virtual ~Window();
 
 		void set_title(const char *title);
@@ -250,7 +223,7 @@ namespace KammoGUI {
 	public:
 		void set_title(std::string txt);
 
-		Label(std::string id, jobject jobj);
+		Label(std::string id);
 		Label();
 	};
 
@@ -264,7 +237,6 @@ namespace KammoGUI {
 		void listener();
 
 		Button(std::string id);
-		Button(std::string id, jobject jobj);
 		Button();
 	};
 
@@ -282,7 +254,7 @@ namespace KammoGUI {
 					      int x, int y)
 			);
 
-		Surface(std::string id, jobject jobj);
+		Surface(std::string id);
 	};
 
 	// abstract class
@@ -325,114 +297,6 @@ namespace KammoGUI {
 			callback(progress);
 		}
 		virtual void on_touch_event() override { /* ignored */ }
-	};
-
-	class Canvas : public Widget {
-	public:
-		class SVGBob;
-
-	private:
-		Animation *current_animation;
-
-		int __width, __height;
-
-		// internal android stuff
-		jint bg_r, bg_g, bg_b;
-
-		jobject canvas;
-		JNIEnv *env; // watch out with this one...
-
-		jclass canvas_clazz;
-		jmethodID canvas_draw_bitmap;
-		jmethodID canvas_constructor;
-
-		jclass raster_clazz; // libsvg-android SvgRaster class
-		jmethodID raster_createBitmap;
-		jmethodID raster_matrixCreate;
-
-		// application callback stuff
-		void *__cbd;
-		void (*canvas_expose_cb)(void *callback_data);
-		void (*canvas_resize_cb)(void *callback_data,
-					 int width, int height);
-		void (*canvas_event_cb)(void *callback_data, canvasEvent_t ce,
-					int x, int y);
-		float (*canvas_measure_inches_cb)(void *callback_data, bool measureWidth);
-		friend class SVGBob;
-
-	public:
-		// internal android callbacks
-		static void canvas_expose(JNIEnv *env, void *callback_data, jobject canvas);
-		static void canvas_resize(JNIEnv *env,
-					  void *callback_data,
-					  int width, int height);
-		static void canvas_event(JNIEnv *env, void *callback_data, canvasEvent_t ce,
-					 int x, int y);
-		static float canvas_measure_inches(JNIEnv *env, void *callback_data, bool measureWidth);
-
-	public:
-
-		class SVGDefinition {
-		private:
-			friend class Canvas;
-
-			svg_android_t *internal;
-
-			std::string file_name;
-
-			SVGDefinition();
-		public:
-			~SVGDefinition();
-			static SVGDefinition *from_file(const std::string &fname);
-			static SVGDefinition *from_string(const std::string &fname);
-		};
-
-		class SVGBob {
-		private:
-			friend class Canvas;
-
-			bool dirty_flag;
-			jobject bob_internal;
-
-			SVGDefinition *svgd;
-			Canvas *target;
-
-			int bl_w, bl_h;
-			int last_w, last_h;
-
-			double blit_x_scale, blit_y_scale;
-
-			SVGBob();
-
-			void prepare_bob();
-		public:
-			SVGBob(Canvas *target, SVGDefinition *svgd);
-			~SVGBob();
-
-			void set_blit_size(int w, int h);
-			void change_definition(SVGDefinition *svgd);
-		};
-
-
-		void start_animation(Animation *animation); // animator can be NULL, if not NULL remember that Canvas will delete the object when done...
-		void stop_animation();
-
-		void blit_SVGBob(SVGBob *svgb, int x, int y);
-
-		void set_bg_color(double r, double g, double b);
-
-		void set_callbacks(
-			void *callback_data,
-			void (*canvas_expose)(void *callback_data),
-			void (*canvas_resize)(void *callback_data,
-					      int width, int height),
-			void (*canvas_event)(void *callback_data, canvasEvent_t ce,
-					     int x, int y),
-			float (*canvas_measure_inches)(void *callback_data, bool measureWidth)
-			);
-
-		Canvas(std::string id, jobject jobj);
-		~Canvas();
 	};
 
 	// class MotionEvent is modelled after the MotionEvent
@@ -489,257 +353,10 @@ namespace KammoGUI {
 		int get_pointer_id(int index) const;
 	};
 
-	class SVGCanvas : public Widget {
-	public:
-		enum dimension_t {
-			HORIZONTAL_DIMENSION, VERTICAL_DIMENSION
-		};
-
-		class SVGMatrix {
-		public:
-			SVGMatrix();
-
-			/*****************
-			 * pointInPreviousSpace = Matrix * pointInNewSpace
-			 *
-			 *               | a c e |   | Xn |
-			 * (Xp, Yp, 1) = | b d f | * | Yn |
-			 *               | 0 0 1 |   | 1  |
-			 *
-			 *****************/
-			double a, b, c, d, e, f;
-
-			void init_identity();
-			void translate(double x, double y);
-			void scale(double x, double y);
-			void rotate(double angle_in_radians);
-			void multiply(const SVGMatrix &other);
-		};
-
-		class SVGRect {
-		public:
-			double x, y, width, height;
-		};
-
-		class SVGDocument;
-
-		class ElementReference {
-		private:
-			SVGDocument *source;
-			mutable svg_element_t *element;
-			std::function<void(SVGDocument *source,
-					   ElementReference *e,
-					   const MotionEvent &event)> event_handler;
-			void trigger_event_handler(const MotionEvent &event);
-
-			friend class SVGCanvas;
-
-			void dereference();
-		public:
-			ElementReference();
-			/// get element reference by id
-			ElementReference(SVGDocument *source, const std::string &id);
-			/// get element reference by id, using the SVGDocument from the sibling element
-			ElementReference(const ElementReference *sibling, const std::string &id);
-			/// copy an existing ElementReference object
-			ElementReference(const ElementReference *original);
-			/// copy an existing ElementReference object
-			ElementReference(const ElementReference &original);
-			/// Explicit move constructor
-			ElementReference(ElementReference &&original);
-			/// get root element reference
-			ElementReference(SVGDocument *source);
-			~ElementReference();
-
-			std::string get_id();
-			std::string get_class();
-
-			void get_transform(SVGMatrix &matrix_output);
-			std::string get_text_content();
-
-			void* pointer();
-
-			void set_transform(const SVGMatrix &matrix);
-			void set_xlink_href(const std::string &url);
-			void set_text_content(const std::string &content);
-			void set_display(const std::string &value);
-			void set_style(const std::string &value);
-
-			void set_line_coords(float x1, float y1, float x2, float y2);
-			void set_rect_coords(float x, float y, float width, float height);
-
-			void set_event_handler(std::function<void(SVGDocument *source,
-								  ElementReference *e,
-								  const MotionEvent &event)> event_handler);
-
-			void add_svg_child(const std::string &svg_chunk);
-			ElementReference add_element_clone(const std::string &new_id, const ElementReference &element_to_clone);
-
-			void get_viewport(SVGRect &rect) const;
-			void get_boundingbox(SVGRect &rect); // return bounding box in canvas coordinates
-
-			void drop_element();
-
-			void debug_dump_render_tree();
-			void debug_dump_id_table();
-			void debug_ref_count();
-
-			ElementReference find_child_by_class(const std::string &class_name);
-
-			ElementReference& operator=(ElementReference&& a);
-		};
-
-		class SVGDocument {
-		private:
-			std::set<Animation *> animations;
-			SVGCanvas *parent;
-			svg_android_t *svg_data;
-
-			std::string file_name;
-
-			friend class ElementReference;
-			friend class SVGCanvas;
-
-			// called by SVGCanvas
-			void process_active_animations();
-			void process_touch_for_animations();
-			int number_of_active_animations();
-
-		protected:
-			SVGDocument(const std::string &fname, SVGCanvas *parent);
-			SVGDocument(SVGCanvas *parent, const std::string &xml);
-
-			void get_canvas_size(int &width_in_pixels, int &height_in_pixels);
-			void get_canvas_size_inches(float &width_in_inches, float &height_in_inches);
-
-			// calculate a scaling factor to fit element into a specific
-			// size defined by "inches_wide" and "inches_tall"
-			double fit_to_inches(const SVGCanvas::ElementReference *element,
-					     double inches_wide, double inches_tall);
-
-		public:
-
-			SVGCanvas *get_parent();
-
-			virtual ~SVGDocument();
-
-			/// start to animate a new animation
-			void start_animation(Animation *new_animation);
-			/// stop an animation - or if NULL pointer, all animations - now
-			void stop_animation(Animation *animation_to_stop = NULL);
-
-			virtual void on_render() = 0;
-			virtual void on_resize();
-			virtual float get_preferred_dimension(dimension_t dimension); // return value measured in inches
-		};
-
-	private:
-		std::vector<SVGDocument *> documents;
-
-		int __width, __height;
-		float __width_inches, __height_inches;
-		jint bg_r, bg_g, bg_b;
-
-		ElementReference *active_element; // if we have an active motion associated with an element
-
-		MotionEvent m_evt; // motion event object
-
-		friend class SVGDocument;
-		friend class ElementReference;
-
-	public:
-		/*************
-		 *
-		 * internal android callbacks - do not use them from any application code, it won't port...
-		 *
-		 *************/
-		static void canvas_expose(JNIEnv *env, SVGCanvas *cnv, jobject canvas);
-		static void canvas_resize(JNIEnv *env, SVGCanvas *cnv, int width, int height, float width_inches, float height_inches);
-		static float canvas_measure_inches(JNIEnv *env, SVGCanvas *cnv, bool measureWidth);
-		static void canvas_motion_event_init_event(
-			JNIEnv *env, SVGCanvas *cnv, long downTime, long eventTime, int androidAction, int pointerCount, int actionIndex,
-			float rawX, float rawY);
-		static void canvas_motion_event_init_pointer(JNIEnv *env, SVGCanvas *cnv, int index, int id, float x, float y, float pressure);
-		static void canvas_motion_event(JNIEnv *env, SVGCanvas *cnv);
-	public:
-
-		SVGCanvas(std::string id, jobject jobj);
-		~SVGCanvas();
-
-		void set_bg_color(double r, double g, double b);
-
-	public:
-		class NoSuchElementException : public jException {
-		public:
-			NoSuchElementException(const std::string &id);
-		};
-
-		class OperationFailedException : public jException {
-		public:
-			OperationFailedException();
-		};
-
-	};
-
-	class List  : public Widget
-	{
-	private:
-		bool is_drop_down;
-
-		int nrcols;
-		std::vector<std::string> titles;
-		std::vector<int> widths;
-
-		std::vector<std::vector<std::string> >rows;
-	public:
-		class iterator {
-		private:
-			friend class List;
-
-			class iter_object {
-			public:
-				jint iter; // internal representation, for Android this is an int..
-				int ref_count;
-				iter_object();
-			};
-
-			iter_object *iter;
-		public:
-			iterator(const iterator &);
-			iterator();
-			~iterator();
-
-			iterator& operator =(const iterator &i);
-		};
-
-		// PLEASE DON'T CALL THIS FROM APPLICATION CODE!
-		void trigger_on_select_row_event(int row_id);
-
-		class NoRowSelected : public jException {
-		public:
-			NoRowSelected();
-		};
-
-
-		List(std::string id, jobject jobj);
-
-		void add_row(std::vector<std::string> data);
-		//void insert_row(char *data[], int iterator);
-		void remove_row(iterator &row);
-		void clear(void);
-
-		iterator get_selected();
-
-		std::string get_value(const iterator &iter, int col);
-
-		//void set_text(int row, int column, const char *text);
-		//void select_row(int row, int column);
-	};
-
 	class Entry : public Widget {
 	private:
 	public:
-		Entry(std::string id, jobject jobj);
+		Entry(std::string id);
 
 		std::string get_text();
 		void set_text(const std::string &txt);
@@ -748,7 +365,7 @@ namespace KammoGUI {
 	class CheckButton : public Widget {
 	private:
 	public:
-		CheckButton(std::string id, jobject jobj);
+		CheckButton(std::string id);
 
 		bool get_state();
 		void set_state(bool _state);
@@ -757,7 +374,7 @@ namespace KammoGUI {
 	class Scale : public Widget {
 	private:
 	public:
-		Scale(std::string id, jobject jobj);
+		Scale(std::string id);
 
 		Scale(bool _horizontal, double _min,
 		      double _max, double _inc);
@@ -787,18 +404,18 @@ namespace KammoGUI {
 	class PollEvent : public Widget {
 	private:
 	public:
-		PollEvent(std::string id, jobject jobj);
+		PollEvent(std::string id);
 	};
 
 	class UserEvent : public Widget {
 	public:
-		UserEvent(std::string id, jobject jobj);
+		UserEvent(std::string id);
 	};
 
 	class EventHandler {
 		/*** STATIC BITS ***/
 	private:
-		static std::multimap<std::string, KammoGUI::EventHandler *> *event_handlers;
+		static std::multimap<std::string, KammoGUI::EventHandler *> event_handlers;
 
 		friend class Widget;
 		static std::vector<KammoGUI::EventHandler *>find_handlers(KammoGUI::Widget*);
@@ -807,7 +424,6 @@ namespace KammoGUI {
 		static void handle_on_init(KammoGUI::Widget *wid);
 		static void handle_on_modify(KammoGUI::Widget *wid);
 		static void handle_on_value_changed(KammoGUI::Widget *wid);
-		static void handle_on_select_row(KammoGUI::Widget *wid, KammoGUI::List::iterator row);
 		static void handle_on_click(KammoGUI::Widget *wid);
 		static void handle_on_double_click(KammoGUI::Widget *wid);
 		static void handle_on_destroy(KammoGUI::Widget *wid);
@@ -828,7 +444,6 @@ namespace KammoGUI {
 		virtual void on_init(KammoGUI::Widget *widget);
 		virtual void on_modify(KammoGUI::Widget *widget);
 		virtual void on_value_changed(KammoGUI::Widget *widget);
-		virtual void on_select_row(KammoGUI::Widget *widget, KammoGUI::List::iterator row);
 		virtual void on_click(KammoGUI::Widget *widget);
 		virtual void on_double_click(KammoGUI::Widget *widget);
 		virtual void on_destroy(KammoGUI::Widget *widget);
@@ -899,15 +514,5 @@ namespace KammoGUI {
 
 	void get_widget(KammoGUI::Widget **target, std::string id);
 };
-
-extern std::map<pthread_t, JNIEnv *> __envm; // one env for each thread..
-
-#define __ENV (__envm[self])
-#define GET_INTERNAL_CLASS(d,I)					\
-	static jclass d = NULL;					\
-	if(d == NULL) {						\
-		d = __ENV->GetObjectClass(I);			\
-		d = (jclass)(__ENV->NewGlobalRef((jobject)d));	\
-	}
 
 #endif

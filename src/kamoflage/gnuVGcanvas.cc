@@ -21,8 +21,6 @@
 
 #include <thread>
 #include <queue>
-#include <jni.h>
-#include <android/log.h>
 
 #include <GLES2/gl2.h>
 #include <GLES2/gl2ext.h>
@@ -35,10 +33,10 @@
 #include <math.h>
 #include <unistd.h>
 #include <sstream>
+#include <libsvg/svgint.h>
 
 #include "kamogui.hh"
 #include "gnuVGcanvas.hh"
-#include "libsvg/svgint.h"
 
 //#define __DO_KAMOFLAGE_DEBUG
 #include "kamoflage_debug.hh"
@@ -81,10 +79,10 @@ static void dump_matrix(const char *header) {
 
 #endif
 
-#define SWAP(a,b) {\
-		auto ______t = a; \
-		a = b; \
-		b = ______t; \
+#define SWAP(a,b) {				\
+		auto ______t = a;		\
+		a = b;				\
+		b = ______t;			\
 	}
 
 namespace KammoGUI {
@@ -273,7 +271,7 @@ namespace KammoGUI {
 		case feBlend_lighten:
 			break;
 		}
-			vgSeti(VG_BLEND_MODE, old_blend_mode);
+		vgSeti(VG_BLEND_MODE, old_blend_mode);
 
 		KAMOFLAGE_DEBUG("Restored blend mode: %d (should be %d)\n",
 				old_blend_mode, VG_BLEND_SRC_OVER);
@@ -392,9 +390,9 @@ namespace KammoGUI {
 	}
 
 	VGImage GnuVG_feGaussianBlur::execute(
-			VGImageAllocator* vgallocator,
-			std::vector<GnuVG_feOperation*> &fe_ops,
-			VGImage sourceGraphic, VGImage backgroundImage
+		VGImageAllocator* vgallocator,
+		std::vector<GnuVG_feOperation*> &fe_ops,
+		VGImage sourceGraphic, VGImage backgroundImage
 		) {
 		KAMOFLAGE_DEBUG("feGaussianBlur::execute\n");
 		auto img_1 = get_image(vgallocator, fe_ops,
@@ -453,7 +451,7 @@ namespace KammoGUI {
 
 		VGfloat clear_color[] = {0.0f, 0.0f, 0.0f, 0.0f};
 		KAMOFLAGE_DEBUG("feOffset(%d, %d)\n",
-			    w, h
+				w, h
 			);
 		vgSetfv(VG_CLEAR_COLOR, 4, clear_color);
 		vgClear(0, 0, w, h);
@@ -471,32 +469,32 @@ namespace KammoGUI {
 
 	VGImage GnuVGFilter::execute(VGImageAllocator* vgallocator,
 				     VGImage sourceGraphic, VGImage backgroundImage) {
-			// never forget to return to previous render target
-			auto old_target = gnuvgGetRenderTarget();
-			auto cleanup = finally(
-				[old_target] {
-					KAMOFLAGE_DEBUG("Render filter to old target: %p\n",
-							(void *)old_target);
-					gnuvgRenderToImage(old_target);
-				}
-				);
-
-			// OK, let's get down to business
-			if(last_operation) {
-				for(auto op : fe_operations)
-					op->ref_count = op->expected_ref_count;
-				auto result = last_operation->get_result(
-					vgallocator,
-					fe_operations,
-					sourceGraphic, backgroundImage
-					);
-				last_operation->result = VG_INVALID_HANDLE;
-				KAMOFLAGE_DEBUG("Result from last_operation %p is %p\n",
-						last_operation, (void *)result);
-				return result;
+		// never forget to return to previous render target
+		auto old_target = gnuvgGetRenderTarget();
+		auto cleanup = finally(
+			[old_target] {
+				KAMOFLAGE_DEBUG("Render filter to old target: %p\n",
+						(void *)old_target);
+				gnuvgRenderToImage(old_target);
 			}
-			return VG_INVALID_HANDLE;
+			);
+
+		// OK, let's get down to business
+		if(last_operation) {
+			for(auto op : fe_operations)
+				op->ref_count = op->expected_ref_count;
+			auto result = last_operation->get_result(
+				vgallocator,
+				fe_operations,
+				sourceGraphic, backgroundImage
+				);
+			last_operation->result = VG_INVALID_HANDLE;
+			KAMOFLAGE_DEBUG("Result from last_operation %p is %p\n",
+					last_operation, (void *)result);
+			return result;
 		}
+		return VG_INVALID_HANDLE;
+	}
 
 
 /*************************
@@ -505,10 +503,10 @@ namespace KammoGUI {
  *
  *************************/
 	void MotionEvent::init(long _downTime,
-					    long _eventTime,
-					    motionEvent_t _action,
-					    int _pointerCount, int _actionIndex,
-					    float rawX, float rawY) {
+			       long _eventTime,
+			       motionEvent_t _action,
+			       int _pointerCount, int _actionIndex,
+			       float rawX, float rawY) {
 		down_time = _downTime;
 		event_time = _eventTime;
 		action = _action;
@@ -1297,8 +1295,6 @@ namespace KammoGUI {
 			animations.insert(new_animation);
 			new_animation->start();
 		}
-
-		auto pinternal = canvas->internal;
 	}
 
 	void GnuVGCanvas::SVGDocument::stop_animation(Animation *animation_to_stop) {
@@ -3074,8 +3070,8 @@ namespace KammoGUI {
 		}
 	}
 
-	GnuVGCanvas::GnuVGCanvas(std::string _id, jobject jobj) :
-		Widget(_id, jobj) {
+	GnuVGCanvas::GnuVGCanvas(std::string _id) :
+		Widget(_id) {
 		gnuVGctx = gnuvgCreateContext();
 
 		KAMOFLAGE_DEBUG("GnuVGCanvas::GnuVGCanvas(%s)\n", _id.c_str());
@@ -3084,14 +3080,14 @@ namespace KammoGUI {
 	GnuVGCanvas::~GnuVGCanvas() {
 	}
 
-	void GnuVGCanvas::init(JNIEnv *env) {
+	void GnuVGCanvas::init() {
 		printGLString("Version", GL_VERSION);
 		printGLString("Vendor", GL_VENDOR);
 		printGLString("Renderer", GL_RENDERER);
 		printGLString("Extensions", GL_EXTENSIONS);
 	}
 
-	void GnuVGCanvas::resize(JNIEnv *env, int width, int height,
+	void GnuVGCanvas::resize(int width, int height,
 				 float width_inches, float height_inches) {
 		KAMOFLAGE_DEBUG("GnuVGCanvas::resize(%d, %d)", width, height);
 
@@ -3130,7 +3126,47 @@ namespace KammoGUI {
 		bg_b = (VGfloat)b;
 	}
 
-	void GnuVGCanvas::step(JNIEnv *env) {
+	static void print_timing() {
+		static struct timespec last_time;
+		struct timespec this_time, time_difference;
+
+		(void) clock_gettime(CLOCK_MONOTONIC_RAW, &this_time);
+
+		time_difference.tv_sec = this_time.tv_sec - last_time.tv_sec;
+		time_difference.tv_nsec = this_time.tv_nsec - last_time.tv_nsec;
+		if(time_difference.tv_nsec < 0)
+			time_difference.tv_sec--;
+
+		if(time_difference.tv_sec >= 500) {
+			last_time = this_time;
+
+			double roll_avg_frame_time = GNUVG_GET_PROFILER_ROLLING_AVG_TIME(full_frame);
+			double full_frame_time = GNUVG_GET_PROFILER_TIME(full_frame);
+			double full_frame_count = GNUVG_GET_PROFILER_COUNT(full_frame);
+			KAMOFLAGE_ERROR("\n");
+
+			KAMOFLAGE_ERROR("------------\n");
+			KAMOFLAGE_ERROR("Rolling avg Time/Frame: %f\n", roll_avg_frame_time);
+			KAMOFLAGE_ERROR("Time/Frame: %f\n",
+					full_frame_time / full_frame_count);
+
+			FOR_ALL_GNUVG_PROFILE_PROBES(
+				KAMOFLAGE_ERROR("%f (%5d): %s\n",
+						gvgp_time / full_frame_time,
+						gvgp_count,
+						gvgp_name)
+				);
+
+			KAMOFLAGE_ERROR("Triangles rendered: %d\n",
+					GNUVG_READ_PROFILER_COUNTER(render_elements) / 3);
+
+			KAMOFLAGE_ERROR("\n");
+		} else
+			(void) GNUVG_READ_PROFILER_COUNTER(render_elements);
+	}
+
+
+	void GnuVGCanvas::step() {
 //		usleep(1000000);
 		KAMOFLAGE_DEBUG("\n\n\n::step() new frame\n");
 
@@ -3172,45 +3208,10 @@ namespace KammoGUI {
 				);
 		}
 #endif
+		print_timing();
 	}
 
-	void GnuVGCanvas::canvas_motion_event_init_event(
-		JNIEnv *env, long downTime, long eventTime,
-		int androidAction, int pointerCount, int actionIndex, float rawX, float rawY) {
-
-		MotionEvent::motionEvent_t action = MotionEvent::ACTION_CANCEL;
-
-		switch(androidAction) {
-		case 0x00000000:
-			action = MotionEvent::ACTION_DOWN;
-			break;
-		case 0x00000002:
-			action = MotionEvent::ACTION_MOVE;
-			break;
-		case 0x00000004:
-			action = MotionEvent::ACTION_OUTSIDE;
-			break;
-		case 0x00000005:
-			action = MotionEvent::ACTION_POINTER_DOWN;
-			break;
-		case 0x00000006:
-			action = MotionEvent::ACTION_POINTER_UP;
-			break;
-		case 0x00000001:
-			action = MotionEvent::ACTION_UP;
-			break;
-		}
-
-		m_evt.init(downTime, eventTime, action, pointerCount, actionIndex, rawX, rawY);
-	}
-
-	void GnuVGCanvas::canvas_motion_event_init_pointer(JNIEnv *env,
-							   int index, int id,
-							   float x, float y, float pressure) {
-		m_evt.init_pointer(index, id, x, y, pressure);
-	}
-
-	void GnuVGCanvas::canvas_motion_event(JNIEnv *env) {
+	void GnuVGCanvas::register_motion_event(const MotionEvent &m_evt) {
 		KAMOFLAGE_DEBUG("    canvas_motion_event (%f, %f)\n", m_evt.get_x(), m_evt.get_y());
 
 		for(auto document : documents) {
@@ -3226,7 +3227,7 @@ namespace KammoGUI {
 			for(; k >= 0 && element == NULL; k--) {
 				GnuVGCanvas::SVGDocument *document = (documents[k]);
 				auto new_element = svg_event_coords_match(document->svg,
-								 m_evt.get_x(), m_evt.get_y());
+									  m_evt.get_x(), m_evt.get_y());
 				if(new_element) {
 					element = new_element;
 					KAMOFLAGE_DEBUG("  element %p found in %s\n",
@@ -3297,7 +3298,7 @@ namespace KammoGUI {
 		KAMOFLAGE_DEBUG("----------- *** GnuVGCanvas::run_on_ui_thread() - completed for %s!\n", debug_id.c_str());
 	}
 
-	static void __GnuVGCanvas__pop_run_on_ui_thread_queue() {
+	void __GnuVGCanvas__pop_run_on_ui_thread_queue() {
 		std::vector<Idnf> tasks;
 		{
 			KAMOFLAGE_DEBUG("----------- *** __GnuVGCanvas__pop_run_on_ui_thread() - acquiring lock...\n");
@@ -3318,97 +3319,11 @@ namespace KammoGUI {
 			KAMOFLAGE_DEBUG("----------- *** __GnuVGCanvas__pop_run_on_ui_thread() - call executed for %s!\n", task.id.c_str());
 		}
 	}
-
 };
 
+
 extern "C" {
-	JNIEXPORT void Java_com_toolkits_kamoflage_gnuVGView_init
-	(JNIEnv *env, jclass jcl, jlong nativeID) {
-		KammoGUI::gnuvg_ui_thread_id = std::this_thread::get_id();
-		KammoGUI::GnuVGCanvas *cnv =
-			(KammoGUI::GnuVGCanvas *)nativeID;
-		cnv->init(env);
-	}
-
-	JNIEXPORT void Java_com_toolkits_kamoflage_gnuVGView_resize
-	(JNIEnv *env, jclass jcl, jlong nativeID, jint width, jint height,
-	 jfloat width_inches, jfloat height_inches) {
-		KammoGUI::GnuVGCanvas *cnv =
-			(KammoGUI::GnuVGCanvas *)nativeID;
-		cnv->resize(env, width, height, width_inches, height_inches);
-	}
-
-	static void print_timing() {
-		static struct timespec last_time;
-		struct timespec this_time, time_difference;
-
-		(void) clock_gettime(CLOCK_MONOTONIC_RAW, &this_time);
-
-		time_difference.tv_sec = this_time.tv_sec - last_time.tv_sec;
-		time_difference.tv_nsec = this_time.tv_nsec - last_time.tv_nsec;
-		if(time_difference.tv_nsec < 0)
-			time_difference.tv_sec--;
-
-		if(time_difference.tv_sec >= 500) {
-			last_time = this_time;
-
-			double roll_avg_frame_time = GNUVG_GET_PROFILER_ROLLING_AVG_TIME(full_frame);
-			double full_frame_time = GNUVG_GET_PROFILER_TIME(full_frame);
-			double full_frame_count = GNUVG_GET_PROFILER_COUNT(full_frame);
-			KAMOFLAGE_ERROR("\n");
-
-			KAMOFLAGE_ERROR("------------\n");
-			KAMOFLAGE_ERROR("Rolling avg Time/Frame: %f\n", roll_avg_frame_time);
-			KAMOFLAGE_ERROR("Time/Frame: %f\n",
-					full_frame_time / full_frame_count);
-
-			FOR_ALL_GNUVG_PROFILE_PROBES(
-				KAMOFLAGE_ERROR("%f (%5d): %s\n",
-						gvgp_time / full_frame_time,
-						gvgp_count,
-						gvgp_name)
-				);
-
-			KAMOFLAGE_ERROR("Triangles rendered: %d\n",
-					GNUVG_READ_PROFILER_COUNTER(render_elements) / 3);
-
-			KAMOFLAGE_ERROR("\n");
-		} else
-			(void) GNUVG_READ_PROFILER_COUNTER(render_elements);
-	}
-
-	JNIEXPORT void Java_com_toolkits_kamoflage_gnuVGView_step
-	(JNIEnv *env, jclass jcl, jlong nativeID) {
-		KammoGUI::GnuVGCanvas *cnv =
-			(KammoGUI::GnuVGCanvas *)nativeID;
+	extern void pop_gnuvgcanvas_on_ui_thread_queue() {
 		KammoGUI::__GnuVGCanvas__pop_run_on_ui_thread_queue();
-		//std::lock_guard<std::mutex> lock_guard(KammoGUI::gnuvg_ui_thread_mutex);
-		cnv->step(env);
-
-		print_timing();
 	}
-
-	JNIEXPORT void Java_com_toolkits_kamoflage_gnuVGView_canvasMotionEventInitEvent
-	(JNIEnv *env, jclass jc, jlong nativeID, jlong downTime, jlong eventTime, jint androidAction, jint pointerCount, jint actionIndex, jfloat rawX, jfloat rawY) {
-		KammoGUI::GnuVGCanvas *cnv =
-			(KammoGUI::GnuVGCanvas *)nativeID;
-		cnv->canvas_motion_event_init_event(env, downTime, eventTime, androidAction, pointerCount, actionIndex, rawX, rawY);
-	}
-
-	JNIEXPORT void Java_com_toolkits_kamoflage_gnuVGView_canvasMotionEventInitPointer
-	(JNIEnv *env, jclass jc, jlong nativeID, jint index, jint id, jfloat x, jfloat y, jfloat pressure) {
-		KammoGUI::GnuVGCanvas *cnv =
-			(KammoGUI::GnuVGCanvas *)nativeID;
-		cnv->canvas_motion_event_init_pointer(env, index, id, x, y, pressure);
-	}
-
-	JNIEXPORT void Java_com_toolkits_kamoflage_gnuVGView_canvasMotionEvent
-	(JNIEnv *env, jclass jc, jlong nativeID) {
-		KammoGUI::GnuVGCanvas *cnv =
-			(KammoGUI::GnuVGCanvas *)nativeID;
-		KAMOFLAGE_DEBUG("cnv->canvas_motion_event() - calling...\n");
-		cnv->canvas_motion_event(env);
-		KAMOFLAGE_DEBUG("cnv->canvas_motion_event() - RETURNED!\n");
-	}
-
 }
